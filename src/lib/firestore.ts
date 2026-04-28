@@ -4,6 +4,7 @@ import {
   addDoc,
   getDoc,
   getDocs,
+  updateDoc,
   query,
   where,
   orderBy,
@@ -21,7 +22,8 @@ export async function getNextIncidentId(): Promise<string> {
       transaction.set(counterRef, { nextNumber: 1 });
       return 1;
     }
-    const current = snap.data().nextNumber as number;
+    const data = snap.data();
+    const current = typeof data.nextNumber === 'number' ? data.nextNumber : 1;
     transaction.update(counterRef, { nextNumber: current + 1 });
     return current;
   });
@@ -38,6 +40,14 @@ export async function submitIncident(
     createdAt: serverTimestamp(),
   });
   return docRef.id;
+}
+
+export async function updateIncidentFiles(
+  docId: string,
+  files: Partial<Pick<Incident, 'sample1Url' | 'sample2Url' | 'sample3Url' | 'correctiveSignatureUrl' | 'safetySignatureUrl'>>
+): Promise<void> {
+  const docRef = doc(db, 'incidents', docId);
+  await updateDoc(docRef, files);
 }
 
 export async function getIncident(id: string): Promise<Incident | null> {
