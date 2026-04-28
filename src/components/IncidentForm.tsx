@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from '@/hooks/useAuthState';
-import { submitIncident } from '@/lib/firestore';
+import { submitIncident, updateIncidentFiles } from '@/lib/firestore';
 import { uploadFile, uploadSignature } from '@/lib/storage';
 import SignaturePad from './SignaturePad';
 import PhotoUpload from './PhotoUpload';
