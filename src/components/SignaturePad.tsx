@@ -2,12 +2,23 @@
 
 import { useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import type { ComponentType } from 'react';
+
+interface SignatureCanvasProps {
+  penColor?: string;
+  canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>;
+}
+
+interface SignatureCanvasHandle {
+  isEmpty(): boolean;
+  toDataURL(type?: string): string;
+  clear(): void;
+}
 
 const SignatureCanvas = dynamic(() => import('react-signature-canvas'), {
   ssr: false,
   loading: () => <div className="w-full h-32 bg-gray-100 animate-pulse rounded" />,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-}) as any;
+}) as ComponentType<SignatureCanvasProps & { ref?: React.Ref<SignatureCanvasHandle> }>;
 
 interface SignaturePadProps {
   label: string;
@@ -16,8 +27,7 @@ interface SignaturePadProps {
 }
 
 export default function SignaturePad({ label, onSave, onClear }: SignaturePadProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sigRef = useRef<any>(null);
+  const sigRef = useRef<SignatureCanvasHandle>(null);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
