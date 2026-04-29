@@ -1,7 +1,14 @@
+// Firestore server timestamp compatible type
+type Timestamp = {
+  toDate: () => Date;
+  seconds: number;
+  nanoseconds: number;
+};
+
 export interface Incident {
   id?: string;
   incidentId: string;
-  createdAt: any;
+  createdAt: Timestamp | null;
   submittedBy: string;
   submittedByEmail: string;
 
@@ -39,5 +46,5 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: 'admin' | 'user';
-  createdAt: any;
+  createdAt: Timestamp | null;
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => {
       if (user) {
         setAuthenticated(true);
       } else {

@@ -3,11 +3,10 @@
 import { useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SignatureCanvas = dynamic(() => import('react-signature-canvas'), {
   ssr: false,
   loading: () => <div className="w-full h-32 bg-gray-100 animate-pulse rounded" />,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }) as any;
 
 interface SignaturePadProps {
