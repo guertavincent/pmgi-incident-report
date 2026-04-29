@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AuthGuard from '@/components/AuthGuard';
@@ -11,7 +11,6 @@ import { Incident } from '@/types/incident';
 function DashboardContent() {
   const { user, role } = useAuthState();
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [filtered, setFiltered] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [searchId, setSearchId] = useState('');
@@ -27,7 +26,6 @@ function DashboardContent() {
         const data =
           role === 'admin' ? await getAllIncidents() : await getUserIncidents(user.uid);
         setIncidents(data);
-        setFiltered(data);
       } catch (err) {
         console.error('Failed to fetch incidents:', err);
       } finally {
@@ -37,9 +35,8 @@ function DashboardContent() {
     fetchData();
   }, [user, role]);
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     let result = incidents;
-
     if (searchId) {
       result = result.filter((i) =>
         i.incidentId.toLowerCase().includes(searchId.toLowerCase())
@@ -61,8 +58,7 @@ function DashboardContent() {
         i.incidentType.toLowerCase().includes(filterType.toLowerCase())
       );
     }
-
-    setFiltered(result);
+    return result;
   }, [incidents, searchId, filterDateFrom, filterDateTo, filterLocation, filterType]);
 
   const formatDate = (ts: unknown) => {

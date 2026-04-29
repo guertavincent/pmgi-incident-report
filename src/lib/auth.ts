@@ -8,10 +8,10 @@ import {
   User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { getFirebaseAuth, db } from './firebase';
 
 export async function loginWithEmail(email: string, password: string) {
-  return signInWithEmailAndPassword(auth, email, password);
+  return signInWithEmailAndPassword(getFirebaseAuth(), email, password);
 }
 
 export async function registerWithEmail(
@@ -19,7 +19,11 @@ export async function registerWithEmail(
   password: string,
   displayName: string
 ) {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const credential = await createUserWithEmailAndPassword(
+    getFirebaseAuth(),
+    email,
+    password
+  );
   await updateProfile(credential.user, { displayName });
   await createUserProfile(credential.user, displayName);
   return credential;
@@ -27,13 +31,13 @@ export async function registerWithEmail(
 
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider();
-  const credential = await signInWithPopup(auth, provider);
+  const credential = await signInWithPopup(getFirebaseAuth(), provider);
   await createUserProfile(credential.user, credential.user.displayName || '');
   return credential;
 }
 
 export async function logout() {
-  return signOut(auth);
+  return signOut(getFirebaseAuth());
 }
 
 export async function createUserProfile(user: User, displayName: string) {

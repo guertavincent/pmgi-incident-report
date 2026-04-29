@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthState } from '@/hooks/useAuthState';
 import { submitIncident, updateIncidentFiles } from '@/lib/firestore';
 import { uploadFile, uploadSignature } from '@/lib/storage';
+import { Incident } from '@/types/incident';
 import SignaturePad from './SignaturePad';
 import PhotoUpload from './PhotoUpload';
 
@@ -54,51 +55,63 @@ export default function IncidentForm() {
     resolver: zodResolver(incidentSchema),
   });
 
-  const onSubmit = async (data: IncidentFormData) => {
-    if (!user) return;
-    setSubmitting(true);
-    setError('');
+  const onSubmit = useCallback(
+    async (data: IncidentFormData) => {
+      if (!user) return;
+      setSubmitting(true);
+      setError('');
 
-    try {
-      const tempId = `temp-${Date.now()}`;
+      try {
+        // Step 1: Submit incident text data to Firestore to get the document ID.
+        const incidentDocId = await submitIncident({
+          ...data,
+          additionalComments: data.additionalComments ?? '',
+          submittedBy: user.uid,
+          submittedByEmail: user.email || '',
+        });
 
-      let sample1Url = '';
-      let sample2Url = '';
-      let sample3Url = '';
-      let correctiveSignatureUrl = '';
-      let safetySignatureUrl = '';
+        // Step 2: Upload files using the Firestore document ID as the storage path.
+        const fileUpdates: Partial<
+          Pick<
+            Incident,
+            | 'sample1Url'
+            | 'sample2Url'
+            | 'sample3Url'
+            | 'correctiveSignatureUrl'
+            | 'safetySignatureUrl'
+          >
+        > = {};
 
-      if (photo1) sample1Url = await uploadFile(photo1, tempId, 'sample1');
-      if (photo2) sample2Url = await uploadFile(photo2, tempId, 'sample2');
-      if (photo3) sample3Url = await uploadFile(photo3, tempId, 'sample3');
-      if (correctiveSigDataUrl)
-        correctiveSignatureUrl = await uploadSignature(
-          correctiveSigDataUrl,
-          tempId,
-          'corrective-sig.png'
-        );
-      if (safetySigDataUrl)
-        safetySignatureUrl = await uploadSignature(safetySigDataUrl, tempId, 'safety-sig.png');
+        if (photo1) fileUpdates.sample1Url = await uploadFile(photo1, incidentDocId, 'sample1');
+        if (photo2) fileUpdates.sample2Url = await uploadFile(photo2, incidentDocId, 'sample2');
+        if (photo3) fileUpdates.sample3Url = await uploadFile(photo3, incidentDocId, 'sample3');
+        if (correctiveSigDataUrl)
+          fileUpdates.correctiveSignatureUrl = await uploadSignature(
+            correctiveSigDataUrl,
+            incidentDocId,
+            'corrective-sig.png'
+          );
+        if (safetySigDataUrl)
+          fileUpdates.safetySignatureUrl = await uploadSignature(
+            safetySigDataUrl,
+            incidentDocId,
+            'safety-sig.png'
+          );
 
-      const incidentDocId = await submitIncident({
-        ...data,
-        additionalComments: data.additionalComments ?? '',
-        submittedBy: user.uid,
-        submittedByEmail: user.email || '',
-        ...(sample1Url && { sample1Url }),
-        ...(sample2Url && { sample2Url }),
-        ...(sample3Url && { sample3Url }),
-        ...(correctiveSignatureUrl && { correctiveSignatureUrl }),
-        ...(safetySignatureUrl && { safetySignatureUrl }),
-      });
+        // Step 3: Update Firestore document with the uploaded file URLs.
+        if (Object.keys(fileUpdates).length > 0) {
+          await updateIncidentFiles(incidentDocId, fileUpdates);
+        }
 
-      router.push(`/dashboard/incidents/${incidentDocId}`);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to submit incident report');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+        router.push(`/dashboard/incidents/${incidentDocId}`);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to submit incident report');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [user, photo1, photo2, photo3, correctiveSigDataUrl, safetySigDataUrl, router]
+  );
 
   const inputClass =
     'w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400';
