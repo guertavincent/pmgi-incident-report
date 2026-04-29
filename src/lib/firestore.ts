@@ -1,0 +1,89 @@
+import {
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  runTransaction,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { getFirebaseDB } from './firebase';
+import { Incident } from '@/types/incident';
+
+export async function getNextIncidentId(): Promise<string> {
+  const db = getFirebaseDB();
+  const counterRef = doc(db, 'counters', 'incidents');
+  const nextNumber = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    if (!snap.exists()) {
+      transaction.set(counterRef, { nextNumber: 1 });
+      return 1;
+    }
+    const data = snap.data();
+    const current = typeof data.nextNumber === 'number' ? data.nextNumber : 1;
+    transaction.update(counterRef, { nextNumber: current + 1 });
+    return current;
+  });
+  return `IR-${String(nextNumber).padStart(5, '0')}`;
+}
+
+export async function submitIncident(
+  incidentData: Omit<Incident, 'id' | 'incidentId' | 'createdAt'>
+): Promise<string> {
+  const db = getFirebaseDB();
+  const incidentId = await getNextIncidentId();
+  const docRef = await addDoc(collection(db, 'incidents'), {
+    ...incidentData,
+    incidentId,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function updateIncidentFiles(
+  docId: string,
+  files: Partial<
+    Pick<
+      Incident,
+      | 'sample1Url'
+      | 'sample2Url'
+      | 'sample3Url'
+      | 'correctiveSignatureUrl'
+      | 'safetySignatureUrl'
+    >
+  >
+): Promise<void> {
+  const db = getFirebaseDB();
+  const docRef = doc(db, 'incidents', docId);
+  await updateDoc(docRef, files);
+}
+
+export async function getIncident(id: string): Promise<Incident | null> {
+  const db = getFirebaseDB();
+  const docRef = doc(db, 'incidents', id);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Incident;
+}
+
+export async function getUserIncidents(uid: string): Promise<Incident[]> {
+  const db = getFirebaseDB();
+  const q = query(
+    collection(db, 'incidents'),
+    where('submittedBy', '==', uid),
+    orderBy('createdAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Incident));
+}
+
+export async function getAllIncidents(): Promise<Incident[]> {
+  const db = getFirebaseDB();
+  const q = query(collection(db, 'incidents'), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Incident));
+}
