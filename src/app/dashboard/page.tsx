@@ -88,7 +88,7 @@ function DashboardContent() {
         <h1 className="text-2xl font-bold text-blue-900">Incident Reports</h1>
         <Link
           href="/report"
-          className="bg-blue-900 text-white px-4 py-2 rounded font-medium hover:bg-blue-800 text-sm"
+          className="bg-blue-900 text-black px-4 py-2 rounded font-medium hover:bg-blue-800 text-sm"
         >
           + New Report
         </Link>
