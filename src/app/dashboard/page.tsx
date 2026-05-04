@@ -13,7 +13,7 @@ function DashboardContent() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [searchId, setSearchId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
@@ -37,9 +37,12 @@ function DashboardContent() {
 
   const filtered = useMemo(() => {
     let result = incidents;
-    if (searchId) {
-      result = result.filter((i) =>
-        i.incidentId.toLowerCase().includes(searchId.toLowerCase())
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (i) =>
+          i.incidentId.toLowerCase().includes(query) ||
+          i.reporterName.toLowerCase().includes(query)
       );
     }
     if (filterDateFrom) {
@@ -59,7 +62,7 @@ function DashboardContent() {
       );
     }
     return result;
-  }, [incidents, searchId, filterDateFrom, filterDateTo, filterLocation, filterType]);
+  }, [incidents, searchQuery, filterDateFrom, filterDateTo, filterLocation, filterType]);
 
   const formatDate = (ts: unknown) => {
     if (!ts) return '-';
@@ -99,9 +102,9 @@ function DashboardContent() {
         <h2 className="text-sm font-semibold text-gray-600 mb-3">Search & Filter</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <input
-            placeholder="Search by Incident ID"
-            value={searchId}
-            onChange={(e) => setSearchId(e.target.value)}
+            placeholder="Search by Incident ID or Reporter"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
