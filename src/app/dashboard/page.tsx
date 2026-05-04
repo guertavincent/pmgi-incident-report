@@ -12,6 +12,7 @@ function DashboardContent() {
   const { user, role } = useAuthState();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const isAdminApp = process.env.NEXT_PUBLIC_ADMIN_APP === 'true';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -24,7 +25,9 @@ function DashboardContent() {
     const fetchData = async () => {
       try {
         const data =
-          role === 'admin' ? await getAllIncidents() : await getUserIncidents(user.uid);
+          isAdminApp || role === 'admin'
+            ? await getAllIncidents()
+            : await getUserIncidents(user.uid);
         setIncidents(data);
       } catch (err) {
         console.error('Failed to fetch incidents:', err);
@@ -33,7 +36,7 @@ function DashboardContent() {
       }
     };
     fetchData();
-  }, [user, role]);
+  }, [user, role, isAdminApp]);
 
   const filtered = useMemo(() => {
     let result = incidents;

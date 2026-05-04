@@ -16,7 +16,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/admin') || pathname.startsWith('/login') || pathname.startsWith('/register')) {
+  if (pathname.startsWith('/dashboard')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin';
+    return NextResponse.rewrite(url);
+  }
+
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/register')
+  ) {
     return NextResponse.next();
   }
 

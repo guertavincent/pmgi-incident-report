@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:admin": "set ADMIN_APP=true&& next dev -p 3001",
+    "dev:admin": "set ADMIN_APP=true&& set NEXT_PUBLIC_ADMIN_APP=true&& next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "start:admin": "set ADMIN_APP=true&& next start -p 3001",
+    "start:admin": "set ADMIN_APP=true&& set NEXT_PUBLIC_ADMIN_APP=true&& next start -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
