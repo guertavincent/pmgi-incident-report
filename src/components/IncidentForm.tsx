@@ -12,6 +12,9 @@ import { uploadFile, uploadSignature } from '@/lib/storage';
 import { Incident } from '@/types/incident';
 import SignaturePad from './SignaturePad';
 import PhotoUpload from './PhotoUpload';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import type { UserOptions as AutoTableOptions } from 'jspdf-autotable';
 
 const incidentSchema = z.object({
   reporterName: z.string().min(1, 'Required'),
@@ -37,6 +40,34 @@ const incidentSchema = z.object({
 
 type IncidentFormData = z.infer<typeof incidentSchema>;
 
+type JsPdfWithAutoTable = jsPDF & {
+  autoTable: (options: AutoTableOptions) => void;
+};
+
+const formatLabel = (key: string) => key.replace(/([A-Z])/g, ' $1').toUpperCase();
+
+const buildReportRows = (data: IncidentFormData) =>
+  Object.entries(data).map(([key, value]) => [formatLabel(key), String(value)]);
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
 export default function IncidentForm() {
   const router = useRouter();
   const { user } = useAuthState();
@@ -47,6 +78,9 @@ export default function IncidentForm() {
   const [photo1, setPhoto1] = useState<File | null>(null);
   const [photo2, setPhoto2] = useState<File | null>(null);
   const [photo3, setPhoto3] = useState<File | null>(null);
+  const [savePrompt, setSavePrompt] = useState<
+    { data: IncidentFormData; incidentDocId: string } | null
+  >(null);
 
   const {
     register,
@@ -104,14 +138,14 @@ export default function IncidentForm() {
           await updateIncidentFiles(incidentDocId, fileUpdates);
         }
 
-        router.push(`/dashboard/incidents/${incidentDocId}`);
+        setSavePrompt({ data, incidentDocId });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to submit incident report');
       } finally {
         setSubmitting(false);
       }
     },
-    [user, photo1, photo2, photo3, correctiveSigDataUrl, safetySigDataUrl, router]
+    [user, photo1, photo2, photo3, correctiveSigDataUrl, safetySigDataUrl]
   );
 
   const inputClass =
@@ -121,11 +155,115 @@ export default function IncidentForm() {
   const sectionClass = 'border border-gray-400 rounded mb-4 overflow-hidden';
   const sectionHeaderClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
+  const handleDownloadPdf = (data: IncidentFormData) => {
+    const doc = new jsPDF();
+    doc.setFillColor(26, 54, 104);
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
+
+    const docWithAutoTable = doc as JsPdfWithAutoTable;
+    docWithAutoTable.autoTable({
+      startY: 35,
+      head: [
+        [
+          {
+            content: 'REPORT DETAILS',
+            colSpan: 2,
+            styles: { fillColor: [26, 54, 104] },
+          },
+        ],
+      ],
+      body: buildReportRows(data),
+    });
+
+    doc.save(`Incident_Report_${data.dateOfIncident}.pdf`);
+  };
+
+  const handleDownloadWord = (data: IncidentFormData) => {
+    const rows = buildReportRows(data)
+      .map(
+        ([label, value]) =>
+          `<tr><td style="border:1px solid #999;padding:6px;font-weight:bold">${escapeHtml(
+            String(label)
+          )}</td><td style="border:1px solid #999;padding:6px">${escapeHtml(
+            String(value)
+          )}</td></tr>`
+      )
+      .join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>Incident Report</title></head><body>
+      <h2 style="font-family:Arial, sans-serif">PMGI OFFICIAL INCIDENT REPORT</h2>
+      <table style="border-collapse:collapse;font-family:Arial, sans-serif;font-size:12px;width:100%">
+        <tbody>${rows}</tbody>
+      </table>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'application/msword' });
+    downloadBlob(blob, `Incident_Report_${data.dateOfIncident}.doc`);
+  };
+
+  const handleSkipSave = () => {
+    if (!savePrompt) return;
+    router.push(`/dashboard/incidents/${savePrompt.incidentDocId}`);
+    setSavePrompt(null);
+  };
+
+  const handleSavedAndContinue = () => {
+    if (!savePrompt) return;
+    router.push(`/dashboard/incidents/${savePrompt.incidentDocId}`);
+    setSavePrompt(null);
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {error && (
         <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
           {error}
+        </div>
+      )}
+
+      {savePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded bg-white p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-900">Save your report</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Would you like to download a copy of this incident report?
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(savePrompt.data)}
+                className="bg-blue-900 text-white px-4 py-2 rounded font-semibold hover:bg-blue-800"
+              >
+                Download PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadWord(savePrompt.data)}
+                className="bg-gray-700 text-white px-4 py-2 rounded font-semibold hover:bg-gray-800"
+              >
+                Download Word
+              </button>
+              <button
+                type="button"
+                onClick={handleSkipSave}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-semibold hover:bg-gray-300"
+              >
+                Skip
+              </button>
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleSavedAndContinue}
+                className="text-sm text-blue-900 underline hover:text-blue-700"
+              >
+                Continue to dashboard
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

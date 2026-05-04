@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { ComponentType } from 'react';
+import Image from 'next/image';
 
 interface SignatureCanvasProps {
   penColor?: string;
@@ -29,6 +30,7 @@ interface SignaturePadProps {
 export default function SignaturePad({ label, onSave, onClear }: SignaturePadProps) {
   const sigRef = useRef<SignatureCanvasHandle>(null);
   const [saved, setSaved] = useState(false);
+  const [uploadedDataUrl, setUploadedDataUrl] = useState<string>('');
 
   const handleSave = () => {
     if (sigRef.current && !sigRef.current.isEmpty()) {
@@ -43,7 +45,23 @@ export default function SignaturePad({ label, onSave, onClear }: SignaturePadPro
       sigRef.current.clear();
     }
     setSaved(false);
+    setUploadedDataUrl('');
     onClear();
+  };
+
+  const handleUpload = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) return;
+      setUploadedDataUrl(result);
+      onSave(result);
+      setSaved(true);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -60,6 +78,26 @@ export default function SignaturePad({ label, onSave, onClear }: SignaturePadPro
             style: { touchAction: 'none' },
           }}
         />
+      </div>
+      <div className="mt-2">
+        <label className="text-xs font-medium text-gray-600">Upload signature image</label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(event) => handleUpload(event.target.files?.[0] ?? null)}
+          className="mt-1 block w-full text-xs text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-gray-200 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-300"
+        />
+        {uploadedDataUrl && (
+          <div className="mt-2 h-24 w-full rounded border border-gray-200 overflow-hidden">
+            <Image
+              src={uploadedDataUrl}
+              alt="Uploaded signature preview"
+              width={400}
+              height={96}
+              className="h-24 w-full object-contain"
+            />
+          </div>
+        )}
       </div>
       <div className="flex gap-2 mt-2">
         <button
