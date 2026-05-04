@@ -13,37 +13,6 @@ import { Incident } from '@/types/incident';
 import SignaturePad from './SignaturePad';
 import PhotoUpload from './PhotoUpload';
 
-
-// 1. Add these imports at the very top of your file
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import type { UserOptions as AutoTableOptions } from 'jspdf-autotable';
-
-// 2. Add this specific helper for the Confidential Watermark
-type JsPdfWithWatermark = jsPDF & {
-  internal: { getNumberOfPages: () => number };
-  setGState: (gState: unknown) => void;
-  GState: new (options: { opacity: number }) => unknown;
-};
-
-const addConfidentialWatermark = (doc: jsPDF) => {
-  const docWithWatermark = doc as JsPdfWithWatermark;
-  const pageCount = docWithWatermark.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.saveGraphicsState();
-    docWithWatermark.setGState(new docWithWatermark.GState({ opacity: 0.1 }));
-    doc.setTextColor(200, 200, 200);
-    doc.setFontSize(60);
-    doc.text('CONFIDENTIAL', 105, 150, { align: 'center', angle: 45 });
-    doc.restoreGraphicsState();
-  }
-};
-
-
-
-
-
 const incidentSchema = z.object({
   reporterName: z.string().min(1, 'Required'),
   dateOfIncident: z.string().min(1, 'Required'),
@@ -335,50 +304,10 @@ export default function IncidentForm() {
         </div>
       </div>
 
-
-      <div className="flex justify-end gap-4 mt-6">
+      <div className="flex justify-end">
         <button
-          type="button"
-          onClick={handleSubmit(async (data) => {
-            const doc = new jsPDF();
-            doc.setFillColor(26, 54, 104);
-            doc.rect(0, 0, 210, 30, 'F');
-            
-            try { 
-              doc.addImage('/pmgi-logo.png', 'PNG', 10, 5, 20, 20); 
-            } catch(e) {
-              console.warn("Logo not found", e);
-            }
-            
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(16);
-            doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
-
-            const docWithAutoTable = doc as jsPDF & {
-              autoTable: (options: AutoTableOptions) => void;
-            };
-
-            docWithAutoTable.autoTable({
-              startY: 35,
-              head: [[{ content: 'REPORT DETAILS', colSpan: 2, styles: { fillColor: [26, 54, 104] } }]],
-              body: Object.entries(data).map(([key, value]) => [
-                key.replace(/([A-Z])/g, ' $1').toUpperCase(), 
-                String(value)
-            
-              ]),
-            });
-
-            addConfidentialWatermark(doc);
-            doc.save(`Incident_Report_${data.dateOfIncident}.pdf`);
-          })}
-          className="bg-gray-600 text-white px-8 py-3 rounded font-semibold hover:bg-gray-700"
-        >
-          Download PDF
-        </button>
-
-        <button 
-          type="submit" 
-          disabled={submitting} 
+          type="submit"
+          disabled={submitting}
           className="bg-blue-900 text-white px-8 py-3 rounded font-semibold hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {submitting ? 'Submitting...' : 'Submit Incident Report'}
@@ -387,4 +316,3 @@ export default function IncidentForm() {
     </form>
   );
 }
-
