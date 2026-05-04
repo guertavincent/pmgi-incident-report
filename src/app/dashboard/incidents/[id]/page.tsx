@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import AuthGuard from '@/components/AuthGuard';
 import { getIncident } from '@/lib/firestore';
 import { Incident } from '@/types/incident';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 function Field({ label, value }: { label: string; value?: string }) {
   return (
@@ -83,6 +85,125 @@ function IncidentDetailContent() {
   const sectionClass = 'bg-white rounded-lg border border-gray-200 overflow-hidden mb-4';
   const headerClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
+  const handleDownloadPdf = async (data: Incident) => {
+    const doc = new jsPDF();
+    doc.setFillColor(26, 54, 104);
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
+
+    const fetchDataUrl = async (url: string) => {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error('Failed to read image data'));
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const addImageBlock = async (label: string, url: string | undefined, startY: number) => {
+      if (!url) return startY;
+      try {
+        const dataUrl = await fetchDataUrl(url);
+        if (!dataUrl) return startY;
+        const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        const maxWidth = 170;
+        const maxHeight = 70;
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load image'));
+        });
+        const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+        const width = img.width * ratio;
+        const height = img.height * ratio;
+
+        doc.setFontSize(11);
+        doc.setTextColor(33, 37, 41);
+        doc.text(label, 20, startY + 6);
+        doc.addImage(dataUrl, format, 20, startY + 10, width, height);
+        return startY + 10 + height + 8;
+      } catch {
+        return startY;
+      }
+    };
+
+    const rows: Array<[string, string]> = [
+      ['REPORTER NAME', data.reporterName || '-'],
+      ['DATE OF INCIDENT', data.dateOfIncident || '-'],
+      ['TIME OF INCIDENT', data.timeOfIncident || '-'],
+      ['LOCATION OF INCIDENT', data.locationOfIncident || '-'],
+      ['INCIDENT REPORTED BY', data.incidentReportedBy || '-'],
+      ['PHONE NUMBER OF REPORTER', data.phoneNumberOfReporter || '-'],
+      ['DATE REPORTED', data.dateReported || '-'],
+      ['INCIDENT REPORTED TO', data.incidentReportedTo || '-'],
+      ['PHONE NO. WHERE REPORTED', data.phoneWhereReported || '-'],
+      ['DATE OF INCIDENT REPORTED', data.dateOfIncidentReported || '-'],
+      ['TYPE OF INCIDENT', data.incidentType || '-'],
+      ['DESCRIPTION OF INCIDENT', data.descriptionOfIncident || '-'],
+      ['PEOPLE INVOLVED', data.peopleInvolved || '-'],
+      ['CORRECTIVE ACTION TAKEN', data.correctiveActionTaken || '-'],
+      ['ACTION TO AVOID FUTURE INCIDENT', data.actionToAvoidFuture || '-'],
+      ['ADDITIONAL COMMENTS', data.additionalComments || '-'],
+      ['CORRECTIVE ACTION APPROVED BY', data.correctiveActionApprovedBy || '-'],
+      ['SAFETY OFFICER IN CHARGE', data.safetyOfficerInCharge || '-'],
+      ['CORRECTIVE ACTION IMPLEMENTED ON', data.correctiveActionImplementedOn || '-'],
+    ];
+
+    autoTable(doc, {
+      startY: 35,
+      head: [
+        [
+          {
+            content: 'REPORT DETAILS',
+            colSpan: 2,
+            styles: { fillColor: [26, 54, 104] },
+          },
+        ],
+      ],
+      body: rows,
+    });
+
+    let cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 35;
+    cursorY += 8;
+
+    const signatureSection = data.correctiveSignatureUrl || data.safetySignatureUrl;
+    if (signatureSection) {
+      doc.setFillColor(26, 54, 104);
+      doc.rect(14, cursorY, 182, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('SIGNATURES', 18, cursorY + 6);
+      cursorY += 12;
+      cursorY = await addImageBlock(
+        'Corrective Action Approver',
+        data.correctiveSignatureUrl,
+        cursorY
+      );
+      cursorY = await addImageBlock('Safety Officer', data.safetySignatureUrl, cursorY);
+    }
+
+    const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
+    if (photoSection) {
+      doc.setFillColor(26, 54, 104);
+      doc.rect(14, cursorY, 182, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('PHOTO EVIDENCE', 18, cursorY + 6);
+      cursorY += 12;
+      cursorY = await addImageBlock('Sample 1', data.sample1Url, cursorY);
+      cursorY = await addImageBlock('Sample 2', data.sample2Url, cursorY);
+      cursorY = await addImageBlock('Sample 3', data.sample3Url, cursorY);
+    }
+
+    const safeId = data.incidentId || data.id || 'Incident_Report';
+    doc.save(`${safeId}.pdf`);
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-center gap-4 mb-6">
@@ -96,6 +217,13 @@ function IncidentDetailContent() {
           <h1 className="text-2xl font-bold text-blue-900">{incident.incidentId}</h1>
           <p className="text-sm text-gray-500">Submitted: {formatDate(incident.createdAt)}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleDownloadPdf(incident)}
+          className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-800"
+        >
+          Download PDF
+        </button>
       </div>
 
       <div className={sectionClass}>
