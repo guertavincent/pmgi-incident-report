@@ -93,6 +93,11 @@ function IncidentDetailContent() {
     doc.setFontSize(16);
     doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
 
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const leftMargin = 14;
+    const sectionWidth = pageWidth - leftMargin * 2;
+
     const fetchDataUrl = async (url: string) => {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -104,11 +109,20 @@ function IncidentDetailContent() {
       });
     };
 
-    const addImageBlock = async (label: string, url: string | undefined, startY: number) => {
-      if (!url) return startY;
+    let cursorY = 0;
+
+    const ensureSpace = (minHeight: number) => {
+      if (cursorY + minHeight > pageHeight - 12) {
+        doc.addPage();
+        cursorY = 20;
+      }
+    };
+
+    const addImageBlock = async (label: string, url: string | undefined) => {
+      if (!url) return;
       try {
         const dataUrl = await fetchDataUrl(url);
-        if (!dataUrl) return startY;
+        if (!dataUrl) return;
         const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
         const maxWidth = 170;
         const maxHeight = 70;
@@ -122,13 +136,14 @@ function IncidentDetailContent() {
         const width = img.width * ratio;
         const height = img.height * ratio;
 
+        ensureSpace(10 + height + 8);
         doc.setFontSize(11);
         doc.setTextColor(33, 37, 41);
-        doc.text(label, 20, startY + 6);
-        doc.addImage(dataUrl, format, 20, startY + 10, width, height);
-        return startY + 10 + height + 8;
+        doc.text(label, 20, cursorY + 6);
+        doc.addImage(dataUrl, format, 20, cursorY + 10, width, height);
+        cursorY = cursorY + 10 + height + 8;
       } catch {
-        return startY;
+        return;
       }
     };
 
@@ -168,36 +183,34 @@ function IncidentDetailContent() {
       body: rows,
     });
 
-    let cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 35;
+    cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 35;
     cursorY += 8;
 
     const signatureSection = data.correctiveSignatureUrl || data.safetySignatureUrl;
     if (signatureSection) {
+      ensureSpace(12);
       doc.setFillColor(26, 54, 104);
-      doc.rect(14, cursorY, 182, 8, 'F');
+      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(11);
-      doc.text('SIGNATURES', 18, cursorY + 6);
+      doc.text('SIGNATURES', leftMargin + 4, cursorY + 6);
       cursorY += 12;
-      cursorY = await addImageBlock(
-        'Corrective Action Approver',
-        data.correctiveSignatureUrl,
-        cursorY
-      );
-      cursorY = await addImageBlock('Safety Officer', data.safetySignatureUrl, cursorY);
+      await addImageBlock('Corrective Action Approver', data.correctiveSignatureUrl);
+      await addImageBlock('Safety Officer', data.safetySignatureUrl);
     }
 
     const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
     if (photoSection) {
+      ensureSpace(12);
       doc.setFillColor(26, 54, 104);
-      doc.rect(14, cursorY, 182, 8, 'F');
+      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(11);
-      doc.text('PHOTO EVIDENCE', 18, cursorY + 6);
+      doc.text('PHOTO EVIDENCE', leftMargin + 4, cursorY + 6);
       cursorY += 12;
-      cursorY = await addImageBlock('Sample 1', data.sample1Url, cursorY);
-      cursorY = await addImageBlock('Sample 2', data.sample2Url, cursorY);
-      cursorY = await addImageBlock('Sample 3', data.sample3Url, cursorY);
+      await addImageBlock('Sample 1', data.sample1Url);
+      await addImageBlock('Sample 2', data.sample2Url);
+      await addImageBlock('Sample 3', data.sample3Url);
     }
 
     const safeId = data.incidentId || data.id || 'Incident_Report';
