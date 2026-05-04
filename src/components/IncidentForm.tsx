@@ -13,8 +13,7 @@ import { Incident } from '@/types/incident';
 import SignaturePad from './SignaturePad';
 import PhotoUpload from './PhotoUpload';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import type { UserOptions as AutoTableOptions } from 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const incidentSchema = z.object({
   reporterName: z.string().min(1, 'Required'),
@@ -39,10 +38,6 @@ const incidentSchema = z.object({
 });
 
 type IncidentFormData = z.infer<typeof incidentSchema>;
-
-type JsPdfWithAutoTable = jsPDF & {
-  autoTable: (options: AutoTableOptions) => void;
-};
 
 const formatLabel = (key: string) => key.replace(/([A-Z])/g, ' $1').toUpperCase();
 
@@ -163,8 +158,7 @@ export default function IncidentForm() {
     doc.setFontSize(16);
     doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
 
-    const docWithAutoTable = doc as JsPdfWithAutoTable;
-    docWithAutoTable.autoTable({
+    autoTable(doc, {
       startY: 35,
       head: [
         [
