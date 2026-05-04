@@ -1,20 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { getFirebaseAuth } from '@/lib/firebase';
 import { logout } from '@/lib/auth';
+import { useAuthState } from '@/hooks/useAuthState';
 
 export default function Navbar() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (u) => setUser(u));
-    return () => unsubscribe();
-  }, []);
+  const { user, role } = useAuthState();
 
   const handleLogout = async () => {
     await logout();
@@ -32,6 +25,11 @@ export default function Navbar() {
             <Link href="/dashboard" className="hover:text-blue-200 text-sm">
               Dashboard
             </Link>
+            {role === 'admin' && (
+              <Link href="/admin" className="hover:text-blue-200 text-sm">
+                Admin
+              </Link>
+            )}
             <Link href="/report" className="hover:text-blue-200 text-sm">
               New Report
             </Link>
