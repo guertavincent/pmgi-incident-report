@@ -87,9 +87,6 @@ function AdminDashboardContent() {
           <h1 className="text-2xl font-bold text-blue-900">Admin Dashboard</h1>
           <p className="text-sm text-gray-600">All incident reports.</p>
         </div>
-        <Link href="/dashboard" className="text-blue-600 hover:underline text-sm">
-          User Dashboard
-        </Link>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
