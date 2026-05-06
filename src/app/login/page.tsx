@@ -40,9 +40,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-blue-900 mb-6 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 w-full max-w-md">
+        <h1 className="text-xl sm:text-2xl font-bold text-blue-900 mb-6 text-center">
           PMGI Incident Report
         </h1>
         <h2 className="text-lg font-semibold text-gray-700 mb-4 text-center">Sign In</h2>

@@ -68,7 +68,7 @@ function IncidentDetailContent() {
 
   if (error || !incident) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
           {error || 'Incident not found'}
         </div>
@@ -218,22 +218,24 @@ function IncidentDetailContent() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/dashboard" className="text-blue-600 hover:underline text-sm">
           ← Back to Dashboard
         </Link>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-blue-900">{incident.incidentId}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-900">
+            {incident.incidentId}
+          </h1>
           <p className="text-sm text-gray-500">Submitted: {formatDate(incident.createdAt)}</p>
         </div>
         <button
           type="button"
           onClick={() => void handleDownloadPdf(incident)}
-          className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-800"
+          className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-800 w-full sm:w-auto"
         >
           Download PDF
         </button>

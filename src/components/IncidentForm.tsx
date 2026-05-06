@@ -211,7 +211,7 @@ export default function IncidentForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {error && (
         <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
           {error}
@@ -220,7 +220,7 @@ export default function IncidentForm() {
 
       {savePrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg rounded bg-white p-6 shadow-lg">
+          <div className="w-full max-w-lg rounded bg-white p-5 sm:p-6 shadow-lg">
             <h3 className="text-lg font-semibold text-gray-900">Save your report</h3>
             <p className="mt-2 text-sm text-gray-600">
               Would you like to download a copy of this incident report?
@@ -229,21 +229,21 @@ export default function IncidentForm() {
               <button
                 type="button"
                 onClick={() => handleDownloadPdf(savePrompt.data)}
-                className="bg-blue-900 text-white px-4 py-2 rounded font-semibold hover:bg-blue-800"
+                className="bg-blue-900 text-white px-4 py-2 rounded font-semibold hover:bg-blue-800 w-full sm:w-auto"
               >
                 Download PDF
               </button>
               <button
                 type="button"
                 onClick={() => handleDownloadWord(savePrompt.data)}
-                className="bg-gray-700 text-white px-4 py-2 rounded font-semibold hover:bg-gray-800"
+                className="bg-gray-700 text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 w-full sm:w-auto"
               >
                 Download Word
               </button>
               <button
                 type="button"
                 onClick={handleSkipSave}
-                className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-semibold hover:bg-gray-300"
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded font-semibold hover:bg-gray-300 w-full sm:w-auto"
               >
                 Skip
               </button>
@@ -264,7 +264,7 @@ export default function IncidentForm() {
       {/* Reporter Information */}
       <div className={sectionClass}>
         <div className={sectionHeaderClass}>Reporter Information</div>
-        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Reporter Name *</label>
             <input {...register('reporterName')} className={inputClass} />
@@ -337,7 +337,7 @@ export default function IncidentForm() {
       {/* Incident Details */}
       <div className={sectionClass}>
         <div className={sectionHeaderClass}>Incident Details</div>
-        <div className="p-4 space-y-4">
+        <div className="p-4 sm:p-5 space-y-4">
           <div>
             <label className={labelClass}>What Kind of Incident? *</label>
             <input {...register('incidentType')} className={inputClass} />
@@ -383,7 +383,7 @@ export default function IncidentForm() {
       {/* Photo Uploads */}
       <div className={sectionClass}>
         <div className={sectionHeaderClass}>Photo Evidence</div>
-        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <PhotoUpload label="Sample 1" onFileSelect={(f) => setPhoto1(f)} />
           <PhotoUpload label="Sample 2" onFileSelect={(f) => setPhoto2(f)} />
           <PhotoUpload label="Sample 3" onFileSelect={(f) => setPhoto3(f)} />
@@ -393,8 +393,8 @@ export default function IncidentForm() {
       {/* Approvals */}
       <div className={sectionClass}>
         <div className={sectionHeaderClass}>Approvals & Signatures</div>
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Corrective Action Approved By *</label>
               <input {...register('correctiveActionApprovedBy')} className={inputClass} />

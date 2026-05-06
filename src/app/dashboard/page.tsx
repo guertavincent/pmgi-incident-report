@@ -85,12 +85,12 @@ function DashboardContent() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-blue-900">Incident Reports</h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-blue-900">Incident Reports</h1>
         <Link
           href="/report"
-          className="bg-blue-900 text-black px-4 py-2 rounded font-medium hover:bg-blue-800 text-sm"
+          className="bg-blue-900 text-black px-4 py-2 rounded font-medium hover:bg-blue-800 text-sm w-full sm:w-auto text-center"
         >
           + New Report
         </Link>
@@ -99,7 +99,7 @@ function DashboardContent() {
       {/* Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
         <h2 className="text-sm font-semibold text-gray-600 mb-3">Search & Filter</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <input
             placeholder="Search by Incident ID or Reporter"
             value={searchQuery}

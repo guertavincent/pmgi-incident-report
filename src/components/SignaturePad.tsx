@@ -65,7 +65,7 @@ export default function SignaturePad({ label, onSave, onClear }: SignaturePadPro
   };
 
   return (
-    <div className="border border-gray-300 rounded p-2">
+    <div className="border border-gray-300 rounded p-2 sm:p-3">
       <p className="text-sm font-medium text-gray-700 mb-1">{label}</p>
       <div className="border border-gray-200 bg-white rounded">
         <SignatureCanvas
@@ -99,18 +99,18 @@ export default function SignaturePad({ label, onSave, onClear }: SignaturePadPro
           </div>
         )}
       </div>
-      <div className="flex gap-2 mt-2">
+      <div className="flex flex-col sm:flex-row gap-2 mt-2">
         <button
           type="button"
           onClick={handleSave}
-          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+          className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 w-full sm:w-auto"
         >
           Save Signature
         </button>
         <button
           type="button"
           onClick={handleClear}
-          className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+          className="px-3 py-2 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 w-full sm:w-auto"
         >
           Clear
         </button>

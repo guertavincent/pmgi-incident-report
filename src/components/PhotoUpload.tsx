@@ -26,7 +26,7 @@ export default function PhotoUpload({ label, onFileSelect }: PhotoUploadProps) {
         type="file"
         accept="image/*"
         onChange={handleChange}
-        className="text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        className="block w-full text-xs sm:text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
       />
       {preview && (
         <div className="mt-2">
