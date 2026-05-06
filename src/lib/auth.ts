@@ -44,21 +44,12 @@ export async function createUserProfile(user: User, displayName: string) {
   const userRef = doc(db, 'users', user.uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) {
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      displayName,
-      role: 'user',
-      createdAt: serverTimestamp(),
-    });
+      await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName,
+        createdAt: serverTimestamp(),
+      });
   }
 }
 
-export async function getUserRole(uid: string): Promise<'admin' | 'user'> {
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  if (snap.exists()) {
-    return snap.data().role as 'admin' | 'user';
-  }
-  return 'user';
-}

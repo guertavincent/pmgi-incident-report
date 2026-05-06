@@ -7,7 +7,7 @@ import { useAuthState } from '@/hooks/useAuthState';
 
 export default function Navbar() {
   const router = useRouter();
-  const { user, role } = useAuthState();
+  const { user } = useAuthState();
 
   const handleLogout = async () => {
     await logout();
@@ -25,11 +25,6 @@ export default function Navbar() {
             <Link href="/dashboard" className="hover:text-blue-200 text-sm">
               Dashboard
             </Link>
-            {role === 'admin' && (
-              <Link href="/admin" className="hover:text-blue-200 text-sm">
-                Admin
-              </Link>
-            )}
             <Link href="/report" className="hover:text-blue-200 text-sm">
               New Report
             </Link>

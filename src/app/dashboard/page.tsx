@@ -5,14 +5,13 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuthState } from '@/hooks/useAuthState';
-import { getAllIncidents, getUserIncidents } from '@/lib/firestore';
+import { getUserIncidents } from '@/lib/firestore';
 import { Incident } from '@/types/incident';
 
 function DashboardContent() {
-  const { user, role } = useAuthState();
+  const { user } = useAuthState();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
-  const isAdminApp = process.env.NEXT_PUBLIC_ADMIN_APP === 'true';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -24,10 +23,7 @@ function DashboardContent() {
     if (!user) return;
     const fetchData = async () => {
       try {
-        const data =
-          isAdminApp || role === 'admin'
-            ? await getAllIncidents()
-            : await getUserIncidents(user.uid);
+        const data = await getUserIncidents(user.uid);
         setIncidents(data);
       } catch (err) {
         console.error('Failed to fetch incidents:', err);
@@ -36,7 +32,7 @@ function DashboardContent() {
       }
     };
     fetchData();
-  }, [user, role, isAdminApp]);
+  }, [user]);
 
   const filtered = useMemo(() => {
     let result = incidents;
