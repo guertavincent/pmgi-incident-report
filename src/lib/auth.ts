@@ -48,8 +48,18 @@ export async function createUserProfile(user: User, displayName: string) {
         uid: user.uid,
         email: user.email,
         displayName,
+      role: 'user',
         createdAt: serverTimestamp(),
       });
   }
+}
+
+export async function getUserRole(uid: string): Promise<'admin' | 'user'> {
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists()) {
+    return snap.data().role as 'admin' | 'user';
+  }
+  return 'user';
 }
 
