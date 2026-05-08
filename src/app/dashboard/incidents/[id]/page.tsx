@@ -165,32 +165,6 @@ function IncidentDetailContent() {
       cursorY += 12;
     };
 
-    const addImageBlock = async (label: string, url: string | undefined) => {
-      if (!url) return;
-      try {
-        const loaded = await loadImageData(url);
-        if (!loaded) return;
-        const maxWidth = sectionWidth - 12;
-        const maxHeight = 55;
-        const ratio = Math.min(maxWidth / loaded.width, maxHeight / loaded.height);
-        const width = loaded.width * ratio;
-        const height = loaded.height * ratio;
-
-        ensureSpace(14 + height + 8);
-        doc.setFontSize(10);
-        doc.setTextColor(33, 37, 41);
-        doc.text(label, leftMargin + 2, cursorY + 6);
-        const imgX = leftMargin + 2;
-        const imgY = cursorY + 10;
-        doc.setDrawColor(220, 220, 220);
-        doc.rect(imgX - 1, imgY - 1, width + 2, height + 2);
-        doc.addImage(loaded.dataUrl, loaded.format, imgX, imgY, width, height);
-        cursorY = imgY + height + 8;
-      } catch {
-        return;
-      }
-    };
-
     const addSignatureRow = async (leftUrl?: string, rightUrl?: string) => {
       const leftData = leftUrl ? await loadImageData(leftUrl) : null;
       const rightData = rightUrl ? await loadImageData(rightUrl) : null;
@@ -198,7 +172,7 @@ function IncidentDetailContent() {
 
       const gap = 8;
       const maxWidth = (sectionWidth - gap - 8) / 2;
-      const maxHeight = 28;
+      const maxHeight = 55;
 
       const leftScale = leftData
         ? Math.min(maxWidth / leftData.width, maxHeight / leftData.height)
@@ -228,6 +202,73 @@ function IncidentDetailContent() {
       }
       if (rightData) {
         const imgX = leftMargin + maxWidth + gap + 4;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, rightW + 2, rightH + 2);
+        doc.addImage(rightData.dataUrl, rightData.format, imgX, imgY, rightW, rightH);
+      }
+
+      cursorY = imgY + rowHeight + 8;
+    };
+
+    const addPhotoRow = async (
+      left: { label: string; url?: string },
+      middle?: { label: string; url?: string },
+      right?: { label: string; url?: string }
+    ) => {
+      const leftData = left.url ? await loadImageData(left.url) : null;
+      const middleData = middle?.url ? await loadImageData(middle.url) : null;
+      const rightData = right?.url ? await loadImageData(right.url) : null;
+      if (!leftData && !middleData && !rightData) return;
+
+      const gap = 6;
+      const maxWidth = (sectionWidth - gap * 2 - 8) / 3;
+      const maxHeight = 40;
+
+      const scale = (data: { width: number; height: number } | null) =>
+        data ? Math.min(maxWidth / data.width, maxHeight / data.height) : 1;
+
+      const leftScale = scale(leftData);
+      const middleScale = scale(middleData);
+      const rightScale = scale(rightData);
+
+      const leftW = leftData ? leftData.width * leftScale : 0;
+      const leftH = leftData ? leftData.height * leftScale : 0;
+      const middleW = middleData ? middleData.width * middleScale : 0;
+      const middleH = middleData ? middleData.height * middleScale : 0;
+      const rightW = rightData ? rightData.width * rightScale : 0;
+      const rightH = rightData ? rightData.height * rightScale : 0;
+      const rowHeight = Math.max(leftH, middleH, rightH, 18);
+
+      ensureSpace(18 + rowHeight + 8);
+      doc.setFontSize(9);
+      doc.setTextColor(33, 37, 41);
+      if (leftData) doc.text(left.label, leftMargin + 2, cursorY + 6);
+      if (middleData && middle) {
+        doc.text(middle.label, leftMargin + maxWidth + gap + 4, cursorY + 6);
+      }
+      if (rightData && right) {
+        doc.text(
+          right.label,
+          leftMargin + maxWidth * 2 + gap * 2 + 6,
+          cursorY + 6
+        );
+      }
+
+      const imgY = cursorY + 10;
+      if (leftData) {
+        const imgX = leftMargin + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, leftW + 2, leftH + 2);
+        doc.addImage(leftData.dataUrl, leftData.format, imgX, imgY, leftW, leftH);
+      }
+      if (middleData) {
+        const imgX = leftMargin + maxWidth + gap + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, middleW + 2, middleH + 2);
+        doc.addImage(middleData.dataUrl, middleData.format, imgX, imgY, middleW, middleH);
+      }
+      if (rightData) {
+        const imgX = leftMargin + maxWidth * 2 + gap * 2 + 2;
         doc.setDrawColor(220, 220, 220);
         doc.rect(imgX - 1, imgY - 1, rightW + 2, rightH + 2);
         doc.addImage(rightData.dataUrl, rightData.format, imgX, imgY, rightW, rightH);
@@ -303,9 +344,11 @@ function IncidentDetailContent() {
     const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
     if (photoSection) {
       addSectionHeader('PHOTO EVIDENCE');
-      await addImageBlock('Photo Evidence 1', data.sample1Url);
-      await addImageBlock('Photo Evidence 2', data.sample2Url);
-      await addImageBlock('Photo Evidence 3', data.sample3Url);
+      await addPhotoRow(
+        { label: 'Photo Evidence 1', url: data.sample1Url },
+        { label: 'Photo Evidence 2', url: data.sample2Url },
+        { label: 'Photo Evidence 3', url: data.sample3Url }
+      );
     }
 
     const safeId = data.incidentId || data.id || 'Incident_Report';
