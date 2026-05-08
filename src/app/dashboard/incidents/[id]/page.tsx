@@ -86,17 +86,41 @@ function IncidentDetailContent() {
   const headerClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
   const handleDownloadPdf = async (data: Incident) => {
-    const doc = new jsPDF();
-    doc.setFillColor(26, 54, 104);
-    doc.rect(0, 0, 210, 30, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
-
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
     const leftMargin = 14;
     const sectionWidth = pageWidth - leftMargin * 2;
+    const labelWidth = 70;
+    const logoSize = 16;
+
+    const loadLogo = async () => {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = '/pmgi-logo.png';
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load logo'));
+        });
+        return img;
+      } catch {
+        return null;
+      }
+    };
+
+    doc.setFillColor(26, 54, 104);
+    doc.rect(0, 0, pageWidth, 24, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+
+    const logoImage = await loadLogo();
+    if (logoImage) {
+      doc.addImage(logoImage, 'PNG', leftMargin, 4, logoSize, logoSize);
+    }
+
+    const titleX = leftMargin + (logoImage ? logoSize + 6 : 0);
+    doc.text('PMGI OFFICIAL INCIDENT REPORT', titleX, 15);
 
     const fetchDataUrl = async (url: string) => {
       const response = await fetch(url);
@@ -109,7 +133,7 @@ function IncidentDetailContent() {
       });
     };
 
-    let cursorY = 0;
+    let cursorY = 30;
 
     const ensureSpace = (minHeight: number) => {
       if (cursorY + minHeight > pageHeight - 12) {
@@ -118,13 +142,23 @@ function IncidentDetailContent() {
       }
     };
 
+    const addSectionHeader = (title: string) => {
+      ensureSpace(12);
+      doc.setFillColor(26, 54, 104);
+      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text(title, leftMargin + 4, cursorY + 6);
+      cursorY += 12;
+    };
+
     const addImageBlock = async (label: string, url: string | undefined) => {
       if (!url) return;
       try {
         const dataUrl = await fetchDataUrl(url);
         if (!dataUrl) return;
         const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-        const maxWidth = 170;
+        const maxWidth = sectionWidth - 12;
         const maxHeight = 70;
         const img = new Image();
         img.src = dataUrl;
@@ -136,12 +170,16 @@ function IncidentDetailContent() {
         const width = img.width * ratio;
         const height = img.height * ratio;
 
-        ensureSpace(10 + height + 8);
-        doc.setFontSize(11);
+        ensureSpace(14 + height + 8);
+        doc.setFontSize(10);
         doc.setTextColor(33, 37, 41);
-        doc.text(label, 20, cursorY + 6);
-        doc.addImage(dataUrl, format, 20, cursorY + 10, width, height);
-        cursorY = cursorY + 10 + height + 8;
+        doc.text(label, leftMargin + 2, cursorY + 6);
+        const imgX = leftMargin + 2;
+        const imgY = cursorY + 10;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, width + 2, height + 2);
+        doc.addImage(dataUrl, format, imgX, imgY, width, height);
+        cursorY = imgY + height + 8;
       } catch {
         return;
       }
@@ -170,7 +208,8 @@ function IncidentDetailContent() {
     ];
 
     autoTable(doc, {
-      startY: 35,
+      startY: 30,
+      margin: { left: leftMargin, right: leftMargin },
       head: [
         [
           {
@@ -181,33 +220,39 @@ function IncidentDetailContent() {
         ],
       ],
       body: rows,
+      theme: 'grid',
+      styles: {
+        fontSize: 9,
+        cellPadding: 2.5,
+        textColor: [33, 37, 41],
+        lineColor: [220, 220, 220],
+        lineWidth: 0.3,
+      },
+      headStyles: {
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      alternateRowStyles: { fillColor: [248, 249, 250] },
+      columnStyles: {
+        0: { cellWidth: labelWidth, fontStyle: 'bold' },
+        1: { cellWidth: sectionWidth - labelWidth },
+      },
     });
 
-    cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 35;
+    cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 30;
     cursorY += 8;
 
     const signatureSection = data.correctiveSignatureUrl || data.safetySignatureUrl;
     if (signatureSection) {
-      ensureSpace(12);
-      doc.setFillColor(26, 54, 104);
-      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.text('SIGNATURES', leftMargin + 4, cursorY + 6);
-      cursorY += 12;
+      addSectionHeader('SIGNATURES');
       await addImageBlock('Corrective Action Approver', data.correctiveSignatureUrl);
       await addImageBlock('Safety Officer', data.safetySignatureUrl);
     }
 
     const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
     if (photoSection) {
-      ensureSpace(12);
-      doc.setFillColor(26, 54, 104);
-      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.text('PHOTO EVIDENCE', leftMargin + 4, cursorY + 6);
-      cursorY += 12;
+      addSectionHeader('PHOTO EVIDENCE');
       await addImageBlock('Sample 1', data.sample1Url);
       await addImageBlock('Sample 2', data.sample2Url);
       await addImageBlock('Sample 3', data.sample3Url);

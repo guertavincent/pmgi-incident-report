@@ -150,16 +150,45 @@ export default function IncidentForm() {
   const sectionClass = 'border border-gray-400 rounded mb-4 overflow-hidden';
   const sectionHeaderClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
-  const handleDownloadPdf = (data: IncidentFormData) => {
-    const doc = new jsPDF();
+  const handleDownloadPdf = async (data: IncidentFormData) => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const leftMargin = 14;
+    const sectionWidth = pageWidth - leftMargin * 2;
+    const labelWidth = 70;
+    const logoSize = 16;
+
+    const loadLogo = async () => {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = '/pmgi-logo.png';
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load logo'));
+        });
+        return img;
+      } catch {
+        return null;
+      }
+    };
+
     doc.setFillColor(26, 54, 104);
-    doc.rect(0, 0, 210, 30, 'F');
+    doc.rect(0, 0, pageWidth, 24, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text('PMGI OFFICIAL INCIDENT REPORT', 35, 18);
+    doc.setFontSize(15);
+
+    const logoImage = await loadLogo();
+    if (logoImage) {
+      doc.addImage(logoImage, 'PNG', leftMargin, 4, logoSize, logoSize);
+    }
+
+    const titleX = leftMargin + (logoImage ? logoSize + 6 : 0);
+    doc.text('PMGI OFFICIAL INCIDENT REPORT', titleX, 15);
 
     autoTable(doc, {
-      startY: 35,
+      startY: 30,
+      margin: { left: leftMargin, right: leftMargin },
       head: [
         [
           {
@@ -170,6 +199,24 @@ export default function IncidentForm() {
         ],
       ],
       body: buildReportRows(data),
+      theme: 'grid',
+      styles: {
+        fontSize: 9,
+        cellPadding: 2.5,
+        textColor: [33, 37, 41],
+        lineColor: [220, 220, 220],
+        lineWidth: 0.3,
+      },
+      headStyles: {
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      alternateRowStyles: { fillColor: [248, 249, 250] },
+      columnStyles: {
+        0: { cellWidth: labelWidth, fontStyle: 'bold' },
+        1: { cellWidth: sectionWidth - labelWidth },
+      },
     });
 
     doc.save(`Incident_Report_${data.dateOfIncident}.pdf`);
