@@ -343,6 +343,7 @@ function IncidentDetailContent() {
 
     const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
     if (photoSection) {
+      ensureSpace(12 + 18 + 40 + 8);
       addSectionHeader('PHOTO EVIDENCE');
       await addPhotoRow(
         { label: 'Photo Evidence 1', url: data.sample1Url },
