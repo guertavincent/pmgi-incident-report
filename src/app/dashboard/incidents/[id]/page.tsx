@@ -133,6 +133,19 @@ function IncidentDetailContent() {
       });
     };
 
+    const loadImageData = async (url: string) => {
+      const dataUrl = await fetchDataUrl(url);
+      if (!dataUrl) return null;
+      const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+      });
+      return { dataUrl, format, width: img.width, height: img.height };
+    };
+
     let cursorY = 30;
 
     const ensureSpace = (minHeight: number) => {
@@ -155,20 +168,13 @@ function IncidentDetailContent() {
     const addImageBlock = async (label: string, url: string | undefined) => {
       if (!url) return;
       try {
-        const dataUrl = await fetchDataUrl(url);
-        if (!dataUrl) return;
-        const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        const loaded = await loadImageData(url);
+        if (!loaded) return;
         const maxWidth = sectionWidth - 12;
-        const maxHeight = 70;
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Failed to load image'));
-        });
-        const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
-        const width = img.width * ratio;
-        const height = img.height * ratio;
+        const maxHeight = 55;
+        const ratio = Math.min(maxWidth / loaded.width, maxHeight / loaded.height);
+        const width = loaded.width * ratio;
+        const height = loaded.height * ratio;
 
         ensureSpace(14 + height + 8);
         doc.setFontSize(10);
@@ -178,11 +184,56 @@ function IncidentDetailContent() {
         const imgY = cursorY + 10;
         doc.setDrawColor(220, 220, 220);
         doc.rect(imgX - 1, imgY - 1, width + 2, height + 2);
-        doc.addImage(dataUrl, format, imgX, imgY, width, height);
+        doc.addImage(loaded.dataUrl, loaded.format, imgX, imgY, width, height);
         cursorY = imgY + height + 8;
       } catch {
         return;
       }
+    };
+
+    const addSignatureRow = async (leftUrl?: string, rightUrl?: string) => {
+      const leftData = leftUrl ? await loadImageData(leftUrl) : null;
+      const rightData = rightUrl ? await loadImageData(rightUrl) : null;
+      if (!leftData && !rightData) return;
+
+      const gap = 8;
+      const maxWidth = (sectionWidth - gap - 8) / 2;
+      const maxHeight = 28;
+
+      const leftScale = leftData
+        ? Math.min(maxWidth / leftData.width, maxHeight / leftData.height)
+        : 1;
+      const rightScale = rightData
+        ? Math.min(maxWidth / rightData.width, maxHeight / rightData.height)
+        : 1;
+
+      const leftW = leftData ? leftData.width * leftScale : 0;
+      const leftH = leftData ? leftData.height * leftScale : 0;
+      const rightW = rightData ? rightData.width * rightScale : 0;
+      const rightH = rightData ? rightData.height * rightScale : 0;
+      const rowHeight = Math.max(leftH, rightH, 18);
+
+      ensureSpace(18 + rowHeight + 8);
+      doc.setFontSize(10);
+      doc.setTextColor(33, 37, 41);
+      doc.text('Corrective Action Approver', leftMargin + 2, cursorY + 6);
+      doc.text('Safety Officer', leftMargin + maxWidth + gap + 6, cursorY + 6);
+
+      const imgY = cursorY + 10;
+      if (leftData) {
+        const imgX = leftMargin + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, leftW + 2, leftH + 2);
+        doc.addImage(leftData.dataUrl, leftData.format, imgX, imgY, leftW, leftH);
+      }
+      if (rightData) {
+        const imgX = leftMargin + maxWidth + gap + 4;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, rightW + 2, rightH + 2);
+        doc.addImage(rightData.dataUrl, rightData.format, imgX, imgY, rightW, rightH);
+      }
+
+      cursorY = imgY + rowHeight + 8;
     };
 
     const rows: Array<[string, string]> = [
@@ -246,16 +297,15 @@ function IncidentDetailContent() {
     const signatureSection = data.correctiveSignatureUrl || data.safetySignatureUrl;
     if (signatureSection) {
       addSectionHeader('SIGNATURES');
-      await addImageBlock('Corrective Action Approver', data.correctiveSignatureUrl);
-      await addImageBlock('Safety Officer', data.safetySignatureUrl);
+      await addSignatureRow(data.correctiveSignatureUrl, data.safetySignatureUrl);
     }
 
     const photoSection = data.sample1Url || data.sample2Url || data.sample3Url;
     if (photoSection) {
       addSectionHeader('PHOTO EVIDENCE');
-      await addImageBlock('Sample 1', data.sample1Url);
-      await addImageBlock('Sample 2', data.sample2Url);
-      await addImageBlock('Sample 3', data.sample3Url);
+      await addImageBlock('Photo Evidence 1', data.sample1Url);
+      await addImageBlock('Photo Evidence 2', data.sample2Url);
+      await addImageBlock('Photo Evidence 3', data.sample3Url);
     }
 
     const safeId = data.incidentId || data.id || 'Incident_Report';
