@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { Fraunces, Space_Grotesk } from 'next/font/google';
 import styles from './housekeeping-guidelines.module.css';
@@ -15,6 +15,18 @@ type Section = {
   title: string;
   slides: Slide[];
 };
+
+type SlideItem = {
+  key: string;
+  header: string;
+  text: string | null;
+  images: string[];
+};
+
+const HIDDEN_IMAGES = new Set([
+  '/housekeeping-guidelines/slide-05-img-01.png',
+  '/housekeeping-guidelines/slide-06-img-01.png',
+]);
 
 const headingFont = Fraunces({
   subsets: ['latin'],
@@ -76,10 +88,7 @@ function buildSections(slides: Slide[]) {
       }
     }
 
-    current.slides.push({
-      ...slide,
-      texts: cleaned,
-    });
+    current.slides.push({ ...slide, texts: cleaned });
   });
 
   if (current.slides.length) {
@@ -89,14 +98,33 @@ function buildSections(slides: Slide[]) {
   return { sections, heroTitle, heroSubtitle };
 }
 
+function buildSlideItems(section: Section): SlideItem[] {
+  return section.slides.flatMap((slide): SlideItem[] => {
+    const title =
+      slide.texts.length > 1 && isHeading(slide.texts[0]) ? slide.texts[0] : null;
+    const body = title ? slide.texts.slice(1) : slide.texts;
+    const images = slide.images.filter((src) => !HIDDEN_IMAGES.has(src));
+    const header = title ?? `Slide ${slide.index}`;
+
+    if (!body.length) {
+      return [{ key: `${slide.index}-0`, header, text: null, images }];
+    }
+
+    return body.map((text, idx): SlideItem => ({
+      key: `${slide.index}-${idx}`,
+      header,
+      text,
+      images: images[idx] ? [images[idx]] : [],
+    }));
+  });
+}
+
 function useRevealOnScroll() {
-  const ref = useRef<HTMLDivElement | null>(null);
+  const ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const element = ref.current;
-    if (!element) {
-      return;
-    }
+    if (!element) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -107,7 +135,7 @@ function useRevealOnScroll() {
           }
         });
       },
-      { threshold: 0.2 }
+      { threshold: 0.08 }
     );
 
     observer.observe(element);
@@ -117,7 +145,8 @@ function useRevealOnScroll() {
   return ref;
 }
 
-function SectionBlock({
+/* ─── Slideshow card ─── */
+function SectionSlideshow({
   section,
   sectionIndex,
   headingClassName,
@@ -126,72 +155,141 @@ function SectionBlock({
   sectionIndex: number;
   headingClassName: string;
 }) {
+  const items = useMemo(() => buildSlideItems(section), [section]);
+  const [active, setActive] = useState(0);
   const sectionRef = useRevealOnScroll();
+
+  const total = items.length;
+  const current = items[active];
+  const hasImage = current.images.length > 0;
+
+  const prev = useCallback(() => setActive((a) => (a - 1 + total) % total), [total]);
+  const next = useCallback(() => setActive((a) => (a + 1) % total), [total]);
+
+  /* keyboard navigation */
+  const handleKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') next();
+    },
+    [prev, next]
+  );
 
   return (
     <section
       id={`section-${sectionIndex}`}
       ref={sectionRef}
       className={`${styles.section} ${styles.reveal}`}
+      onKeyDown={handleKey}
+      tabIndex={0}
+      aria-label={section.title}
     >
-      <div className={styles.sectionHeader}>
-        <h2 className={headingClassName}>{section.title}</h2>
-        <p>{section.slides.length} slides</p>
-      </div>
+      <div className={styles.slideshowCard}>
 
-      <div className={styles.cardGrid}>
-        {section.slides.map((slide) => {
-          const title =
-            slide.texts.length > 1 && isHeading(slide.texts[0])
-              ? slide.texts[0]
-              : null;
-          const body = title ? slide.texts.slice(1) : slide.texts;
-
-          return (
-            <article key={slide.index} className={styles.card}>
-              <div className={styles.cardHeader}>
-                <span>Slide {slide.index}</span>
-                {title ? <h3>{title}</h3> : null}
+        {/* ── Left panel: image ── */}
+        <div className={styles.slideLeft}>
+          <div className={styles.slideImageZone}>
+            {hasImage ? (
+              <Image
+                key={current.images[0]}
+                src={current.images[0]}
+                alt={`${current.header} visual`}
+                fill
+                sizes="(max-width: 900px) 100vw, 480px"
+                className={styles.slideImage}
+                priority={sectionIndex === 0 && active === 0}
+              />
+            ) : (
+              <div className={styles.slideImagePlaceholder}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M3 15l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span className={styles.placeholderLabel}>No image</span>
               </div>
+            )}
 
-              {body.length ? (
-                <div className={styles.cardBody}>
-                  {body.map((text, idx) => (
-                    <p key={`${slide.index}-text-${idx}`}>{text}</p>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.cardBodyMuted}>
-                  Visual reference from the training deck.
-                </p>
-              )}
+            {/* Section title overlay on image */}
+            <div className={styles.imageOverlay}>
+              <span className={styles.overlaySection}>{section.title}</span>
+            </div>
+          </div>
+        </div>
 
-              {slide.images.length ? (
-                <div className={styles.imageGrid}>
-                  {slide.images.map((src, idx) => (
-                    <div
-                      key={`${slide.index}-img-${idx}`}
-                      className={styles.imageFrame}
-                    >
-                      <Image
-                        src={src}
-                        alt={`Slide ${slide.index} image ${idx + 1}`}
-                        fill
-                        sizes="(max-width: 900px) 100vw, 33vw"
-                        className={styles.image}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
+        {/* ── Right panel: content ── */}
+        <div className={styles.slideRight}>
+
+          {/* Header */}
+          <div className={styles.slideRightHeader}>
+            <div className={styles.slideCounter}>
+              <span className={styles.slideCountCurrent}>{String(active + 1).padStart(2, '0')}</span>
+              <span className={styles.slideCountSep}>/</span>
+              <span className={styles.slideCountTotal}>{String(total).padStart(2, '0')}</span>
+            </div>
+            <h2 className={`${headingClassName} ${styles.sectionTitle}`}>
+              {section.title}
+            </h2>
+            <p className={styles.slideLabel}>{current.header}</p>
+          </div>
+
+          {/* Body text */}
+          <div className={styles.slideBody}>
+            {current.text ? (
+              <p className={styles.slideText}>{current.text}</p>
+            ) : (
+              <p className={styles.slideTextMuted}>
+                Visual reference from the training deck.
+              </p>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className={styles.slideControls}>
+            <div className={styles.slideDots} role="tablist">
+              {items.map((item, idx) => (
+                <button
+                  key={item.key}
+                  role="tab"
+                  aria-selected={idx === active}
+                  aria-label={`Slide ${idx + 1}`}
+                  className={`${styles.slideDot} ${idx === active ? styles.slideDotActive : ''}`}
+                  onClick={() => setActive(idx)}
+                />
+              ))}
+            </div>
+
+            <div className={styles.slideBtns}>
+              <button
+                className={styles.slideBtn}
+                onClick={prev}
+                aria-label="Previous slide"
+                disabled={total <= 1}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button
+                className={styles.slideBtn}
+                onClick={next}
+                aria-label="Next slide"
+                disabled={total <= 1}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
       </div>
     </section>
   );
 }
 
+/* ─── Page ─── */
 export default function HousekeepingGuidelinesPage() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -200,26 +298,14 @@ export default function HousekeepingGuidelinesPage() {
     let isMounted = true;
 
     fetch('/housekeeping-guidelines/slides.json')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Unable to load housekeeping guidelines.');
-        }
-        return response.json();
+      .then((res) => {
+        if (!res.ok) throw new Error('Unable to load housekeeping guidelines.');
+        return res.json();
       })
-      .then((data: Slide[]) => {
-        if (isMounted) {
-          setSlides(data);
-        }
-      })
-      .catch((err: Error) => {
-        if (isMounted) {
-          setError(err.message);
-        }
-      });
+      .then((data: Slide[]) => { if (isMounted) setSlides(data); })
+      .catch((err: Error) => { if (isMounted) setError(err.message); });
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const { sections, heroTitle, heroSubtitle } = useMemo(
@@ -229,6 +315,8 @@ export default function HousekeepingGuidelinesPage() {
 
   return (
     <div className={`${styles.page} ${bodyFont.className}`}>
+
+      {/* ── HERO ── */}
       <header className={styles.hero}>
         <div className={styles.heroContent}>
           <p className={styles.kicker}>PMGI Operations</p>
@@ -242,35 +330,42 @@ export default function HousekeepingGuidelinesPage() {
             <span>Updated May 11, 2026</span>
           </div>
         </div>
+
         <div className={styles.heroPanel}>
           <div className={styles.heroBadge}>Guideline Playbook</div>
           <div className={styles.heroStats}>
-            <div>
-              <h3>{sections.length}</h3>
-              <p>Key Sections</p>
+            <div className={styles.statCard}>
+              <p className={styles.statNum}>{sections.length}</p>
+              <p className={styles.statLabel}>Key Sections</p>
             </div>
-            <div>
-              <h3>{slides.length}</h3>
-              <p>Total Slides</p>
+            <div className={styles.statCard}>
+              <p className={styles.statNum}>{slides.length}</p>
+              <p className={styles.statLabel}>Total Slides</p>
             </div>
           </div>
         </div>
       </header>
 
-      <nav className={styles.sectionNav}>
+      {/* ── NAV ── */}
+      <nav className={styles.sectionNav} aria-label="Jump to section">
         {sections.map((section, index) => (
-          <a key={section.title} href={`#section-${index}`}>
+          <a
+            key={section.title}
+            href={`#section-${index}`}
+            className={styles.navLink}
+          >
             {section.title}
           </a>
         ))}
       </nav>
 
+      {/* ── CONTENT ── */}
       {error ? (
         <div className={styles.error}>{error}</div>
       ) : (
         <main className={styles.sections}>
           {sections.map((section, sectionIndex) => (
-            <SectionBlock
+            <SectionSlideshow
               key={section.title}
               section={section}
               sectionIndex={sectionIndex}
