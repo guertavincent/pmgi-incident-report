@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { handleGoogleRedirectResult, loginWithEmail, loginWithGoogle } from '@/lib/auth';
+import { loginWithEmail, loginWithGoogle } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,20 +11,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const checkRedirectResult = async () => {
-      try {
-        const result = await handleGoogleRedirectResult();
-        if (result?.user) {
-          router.push('/dashboard');
-        }
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Google login failed');
-      }
-    };
-    void checkRedirectResult();
-  }, [router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,10 +30,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const result = await loginWithGoogle();
-      if (result && 'redirected' in result && result.redirected) {
-        return;
-      }
+      await loginWithGoogle();
       router.push('/dashboard');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Google login failed');

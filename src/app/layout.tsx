@@ -3,7 +3,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'PMGI Incident Report',
+  title: 'PMGI Operations Management',
   description: 'PMGI Incident Reporting System',
 };
 

@@ -101,12 +101,16 @@ function DashboardContent() {
         <h2 className="text-sm font-semibold text-gray-600 mb-3">Search & Filter</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <input
+            id="incident-search"
+            name="incidentSearch"
             placeholder="Search by Incident ID or Reporter"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
+            id="filter-date-from"
+            name="filterDateFrom"
             type="date"
             placeholder="Date From"
             value={filterDateFrom}
@@ -114,6 +118,8 @@ function DashboardContent() {
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
+            id="filter-date-to"
+            name="filterDateTo"
             type="date"
             placeholder="Date To"
             value={filterDateTo}
@@ -121,12 +127,16 @@ function DashboardContent() {
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
+            id="filter-location"
+            name="filterLocation"
             placeholder="Filter by Location"
             value={filterLocation}
             onChange={(e) => setFilterLocation(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
+            id="filter-type"
+            name="filterType"
             placeholder="Filter by Type"
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
