@@ -44,6 +44,12 @@ export default function Navbar() {
               <Link href="/report" className="hover:text-blue-200 text-sm">
                 New Report
               </Link>
+              <Link
+                href="/housekeeping-guidelines"
+                className="hover:text-blue-200 text-sm"
+              >
+                Housekeeping Guidelines
+              </Link>
             </>
           )}
           {user ? (
@@ -84,6 +90,12 @@ export default function Navbar() {
                 </Link>
                 <Link href="/report" className="hover:text-blue-200 text-sm">
                   New Report
+                </Link>
+                <Link
+                  href="/housekeeping-guidelines"
+                  className="hover:text-blue-200 text-sm"
+                >
+                  Housekeeping Guidelines
                 </Link>
               </>
             )}
