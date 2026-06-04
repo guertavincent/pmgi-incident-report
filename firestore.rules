@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -14,11 +19,9 @@ service cloud.firestore {
         && request.resource.data.submittedBy == request.auth.uid;
 
       allow read: if request.auth != null
-        && (resource.data.submittedBy == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        && (resource.data.submittedBy == request.auth.uid || isAdmin());
 
-      allow update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if request.auth != null && isAdmin();
     }
   }
 }

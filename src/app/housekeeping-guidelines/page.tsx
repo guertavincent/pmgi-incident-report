@@ -24,8 +24,15 @@ type SlideItem = {
 };
 
 const HIDDEN_IMAGES = new Set([
+  '/housekeeping-guidelines/slide-04-img-01.png',
   '/housekeeping-guidelines/slide-05-img-01.png',
   '/housekeeping-guidelines/slide-06-img-01.png',
+  '/housekeeping-guidelines/slide-24-img-01.png',
+  '/housekeeping-guidelines/slide-25-img-01.png',
+  '/housekeeping-guidelines/slide-27-img-01.png',
+  '/housekeeping-guidelines/slide-28-img-01.png',
+  '/housekeeping-guidelines/slide-30-img-01.png',
+  '/housekeeping-guidelines/slide-31-img-01.png',
 ]);
 
 const headingFont = Fraunces({
@@ -37,6 +44,19 @@ const bodyFont = Space_Grotesk({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
 });
+
+const HOUSEKEEPING_GALLERY = [
+  { src: '/img%201.png', label: 'Housekeeping Image 1' },
+  { src: '/img%202.png', label: 'Housekeeping Image 2' },
+  { src: '/img%203.png', label: 'Housekeeping Image 3' },
+  { src: '/img%204.png', label: 'Housekeeping Image 4' },
+  { src: '/img%205.png', label: 'Housekeeping Image 5' },
+];
+
+const HOUSEKEEPING_GALLERY_DETAIL = [
+  { src: '/img%206.png', label: 'Housekeeping Image 6' },
+  { src: '/img%207.png', label: 'Housekeeping Image 7' },
+];
 
 function normalizeText(text: string) {
   return text.replace(/\s+/g, ' ').trim();
@@ -145,6 +165,84 @@ function useRevealOnScroll() {
   return ref;
 }
 
+/* ─── Housekeeping photo card ─── */
+function HousekeepingPhotoCard({
+  gallery,
+  eyebrow,
+  title,
+  text,
+  tag,
+  ariaLabel,
+}: {
+  gallery: { src: string; label: string }[];
+  eyebrow: string;
+  title: string;
+  text: string;
+  tag: string;
+  ariaLabel: string;
+}) {
+  const [active, setActive] = useState(0);
+  const total = gallery.length;
+  const current = gallery[active];
+
+  useEffect(() => {
+    if (total <= 1) return undefined;
+    const timer = window.setInterval(() => {
+      setActive((value) => (value + 1) % total);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [total]);
+
+  return (
+    <section className={styles.photoShowcase} aria-label={ariaLabel}>
+      <div className={styles.photoCard}>
+        <div className={styles.photoMedia}>
+          <div key={current.src} className={styles.photoFrame}>
+            <Image
+              src={current.src}
+              alt={current.label}
+              fill
+              sizes="(max-width: 900px) 100vw, 520px"
+              className={styles.photoImage}
+              priority
+            />
+          </div>
+          <div className={styles.photoTag}>{tag}</div>
+        </div>
+
+        <div className={styles.photoContent}>
+          <p className={styles.photoEyebrow}>{eyebrow}</p>
+          <h2 className={`${headingFont.className} ${styles.photoTitle}`}>
+            {title}
+          </h2>
+          <p className={styles.photoText}>{text}</p>
+
+          <div className={styles.photoControls}>
+            <div className={styles.photoDots} role="tablist">
+              {gallery.map((item, idx) => (
+                <button
+                  key={item.src}
+                  type="button"
+                  role="tab"
+                  aria-selected={idx === active}
+                  aria-label={`Show photo ${idx + 1}`}
+                  className={`${styles.photoDot} ${idx === active ? styles.photoDotActive : ''}`}
+                  onClick={() => setActive(idx)}
+                />
+              ))}
+            </div>
+            <div className={styles.photoIndex}>
+              <span>{String(active + 1).padStart(2, '0')}</span>
+              <span className={styles.photoIndexSep}>/</span>
+              <span>{String(total).padStart(2, '0')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Slideshow card ─── */
 function SectionSlideshow({
   section,
@@ -162,6 +260,7 @@ function SectionSlideshow({
   const total = items.length;
   const current = items[active];
   const hasImage = current.images.length > 0;
+  const isLcpImage = sectionIndex === 0 && active === 0;
 
   const prev = useCallback(() => setActive((a) => (a - 1 + total) % total), [total]);
   const next = useCallback(() => setActive((a) => (a + 1) % total), [total]);
@@ -187,7 +286,7 @@ function SectionSlideshow({
       <div className={styles.slideshowCard}>
 
         {/* ── Left panel: image ── */}
-        <div className={styles.slideLeft}>
+        <div key={`left-${current.key}`} className={`${styles.slideLeft} ${styles.fadeIn}`}>
           <div className={styles.slideImageZone}>
             {hasImage ? (
               <Image
@@ -197,7 +296,9 @@ function SectionSlideshow({
                 fill
                 sizes="(max-width: 900px) 100vw, 480px"
                 className={styles.slideImage}
-                priority={sectionIndex === 0 && active === 0}
+                loading={isLcpImage ? 'eager' : 'lazy'}
+                fetchPriority={isLcpImage ? 'high' : 'low'}
+                priority={isLcpImage}
               />
             ) : (
               <div className={styles.slideImagePlaceholder}>
@@ -218,7 +319,7 @@ function SectionSlideshow({
         </div>
 
         {/* ── Right panel: content ── */}
-        <div className={styles.slideRight}>
+        <div key={`right-${current.key}`} className={`${styles.slideRight} ${styles.fadeIn}`}>
 
           {/* Header */}
           <div className={styles.slideRightHeader}>
@@ -345,6 +446,24 @@ export default function HousekeepingGuidelinesPage() {
           </div>
         </div>
       </header>
+
+      <HousekeepingPhotoCard
+        gallery={HOUSEKEEPING_GALLERY}
+        eyebrow="PMGI Guidelines"
+        title="Clean. Safe. Ready for Guests."
+        text="A quick visual walkthrough of housekeeping checkpoints, stocked rooms, and presentation standards. Use the slider to review each reference image."
+        tag="Housekeeping Visuals"
+        ariaLabel="Housekeeping photo highlights"
+      />
+
+      <HousekeepingPhotoCard
+        gallery={HOUSEKEEPING_GALLERY_DETAIL}
+        eyebrow="Room Readiness"
+        title="Detail Checks and Finish Quality"
+        text="Two additional visuals focused on finishing touches and consistent room presentation."
+        tag="Detail Standards"
+        ariaLabel="Housekeeping detail highlights"
+      />
 
       {/* ── NAV ── */}
       <nav className={styles.sectionNav} aria-label="Jump to section">

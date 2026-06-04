@@ -10,13 +10,57 @@ interface PhotoUploadProps {
 export default function PhotoUpload({ label, onFileSelect }: PhotoUploadProps) {
   const [preview, setPreview] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) return file;
+
+    const imageDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = () => reject(new Error('Failed to read image'));
+      reader.readAsDataURL(file);
+    });
+
+    if (!imageDataUrl) return file;
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Failed to load image'));
+      image.src = imageDataUrl;
+    });
+
+    const maxWidth = 1600;
+    const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+    const targetWidth = Math.round(img.width * scale);
+    const targetHeight = Math.round(img.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.8)
+    );
+
+    if (!blob) return file;
+
+    return new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+      type: 'image/jpeg',
+    });
+  };
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    onFileSelect(file);
+    const compressed = await compressImage(file);
+    onFileSelect(compressed);
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   };
 
   return (

@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -15,23 +15,41 @@ import PhotoUpload from './PhotoUpload';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+const incidentTypeOptions = [
+  'Injury',
+  'Near Miss',
+  'Property Damage',
+  'Vehicle',
+  'Security',
+  'Equipment',
+  'Other',
+] as const;
+
+const phoneRegex = /^[+()\d\s-]{7,}$/;
+
 const incidentSchema = z.object({
   reporterName: z.string().min(1, 'Required'),
   dateOfIncident: z.string().min(1, 'Required'),
   timeOfIncident: z.string().min(1, 'Required'),
   locationOfIncident: z.string().min(1, 'Required'),
   incidentReportedBy: z.string().min(1, 'Required'),
-  phoneNumberOfReporter: z.string().min(1, 'Required'),
+  phoneNumberOfReporter: z
+    .string()
+    .min(1, 'Required')
+    .regex(phoneRegex, 'Invalid phone number'),
   dateReported: z.string().min(1, 'Required'),
   incidentReportedTo: z.string().min(1, 'Required'),
-  phoneWhereReported: z.string().min(1, 'Required'),
+  phoneWhereReported: z
+    .string()
+    .min(1, 'Required')
+    .regex(phoneRegex, 'Invalid phone number'),
   dateOfIncidentReported: z.string().min(1, 'Required'),
-  incidentType: z.string().min(1, 'Required'),
+  incidentType: z.enum(incidentTypeOptions, { message: 'Required' }),
   descriptionOfIncident: z.string().min(1, 'Required'),
   peopleInvolved: z.string().min(1, 'Required'),
   correctiveActionTaken: z.string().min(1, 'Required'),
   actionToAvoidFuture: z.string().min(1, 'Required'),
-  additionalComments: z.string(),
+  additionalComments: z.string().optional(),
   correctiveActionApprovedBy: z.string().min(1, 'Required'),
   safetyOfficerInCharge: z.string().min(1, 'Required'),
   correctiveActionImplementedOn: z.string().min(1, 'Required'),
@@ -51,6 +69,21 @@ const escapeHtml = (value: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
+const getToday = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getNowTime = () => {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
 
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
@@ -81,9 +114,59 @@ export default function IncidentForm() {
     register,
     handleSubmit,
     formState: { errors },
+    reset,
+    control,
   } = useForm<IncidentFormData>({
     resolver: zodResolver(incidentSchema),
+    defaultValues: {
+      dateOfIncident: getToday(),
+      timeOfIncident: getNowTime(),
+      dateReported: getToday(),
+      dateOfIncidentReported: getToday(),
+      incidentType: 'Other',
+    },
   });
+
+  const draftKey = useMemo(
+    () => `incidentDraft:${user?.uid ?? 'guest'}`,
+    [user?.uid]
+  );
+  const storedDraft = typeof window === 'undefined' ? null : localStorage.getItem(draftKey);
+  const autosaveTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!storedDraft) return;
+    try {
+      const draft = JSON.parse(storedDraft) as Partial<IncidentFormData>;
+      reset({
+        dateOfIncident: getToday(),
+        timeOfIncident: getNowTime(),
+        dateReported: getToday(),
+        dateOfIncidentReported: getToday(),
+        incidentType: 'Other',
+        ...draft,
+      });
+    } catch {
+      localStorage.removeItem(draftKey);
+    }
+  }, [draftKey, reset, storedDraft]);
+
+  const formValues = useWatch({ control });
+
+  useEffect(() => {
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+    }
+    autosaveTimer.current = window.setTimeout(() => {
+      localStorage.setItem(draftKey, JSON.stringify(formValues));
+    }, 400);
+
+    return () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+      }
+    };
+  }, [draftKey, formValues]);
 
   const onSubmit = useCallback(
     async (data: IncidentFormData) => {
@@ -98,6 +181,10 @@ export default function IncidentForm() {
           additionalComments: data.additionalComments ?? '',
           submittedBy: user.uid,
           submittedByEmail: user.email || '',
+          status: 'Open',
+          assignedToName: '',
+          assignedToEmail: '',
+          comments: [],
         });
 
         // Step 2: Upload files using the Firestore document ID as the storage path.
@@ -133,6 +220,7 @@ export default function IncidentForm() {
           await updateIncidentFiles(incidentDocId, fileUpdates);
         }
 
+        localStorage.removeItem(draftKey);
         setSavePrompt({ data, incidentDocId });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to submit incident report');
@@ -140,7 +228,7 @@ export default function IncidentForm() {
         setSubmitting(false);
       }
     },
-    [user, photo1, photo2, photo3, correctiveSigDataUrl, safetySigDataUrl]
+    [user, photo1, photo2, photo3, correctiveSigDataUrl, safetySigDataUrl, draftKey]
   );
 
   const inputClass =
@@ -150,8 +238,69 @@ export default function IncidentForm() {
   const sectionClass = 'border border-gray-400 rounded mb-4 overflow-hidden';
   const sectionHeaderClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
+  
+  const sections = useMemo(
+    () => [
+      {
+        key: 'reporter',
+        label: 'Reporter Information',
+        fields: [
+          'reporterName',
+          'dateOfIncident',
+          'timeOfIncident',
+          'locationOfIncident',
+          'incidentReportedBy',
+          'phoneNumberOfReporter',
+          'dateReported',
+          'incidentReportedTo',
+          'phoneWhereReported',
+          'dateOfIncidentReported',
+        ] as const,
+      },
+      {
+        key: 'details',
+        label: 'Incident Details',
+        fields: [
+          'incidentType',
+          'descriptionOfIncident',
+          'peopleInvolved',
+          'correctiveActionTaken',
+          'actionToAvoidFuture',
+        ] as const,
+      },
+      {
+        key: 'approvals',
+        label: 'Approvals & Signatures',
+        fields: [
+          'correctiveActionApprovedBy',
+          'safetyOfficerInCharge',
+          'correctiveActionImplementedOn',
+        ] as const,
+      },
+    ],
+    []
+  );
+
+  const completion = useMemo(() => {
+    const isFilled = (value: unknown) =>
+      typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+
+    const totals = sections.map((section) => {
+      const total = section.fields.length;
+      const filled = section.fields.filter((field) => isFilled(formValues[field])).length;
+      return { key: section.key, label: section.label, total, filled };
+    });
+
+    const totalFields = totals.reduce((sum, s) => sum + s.total, 0);
+    const totalFilled = totals.reduce((sum, s) => sum + s.filled, 0);
+    const percent = totalFields === 0 ? 0 : Math.round((totalFilled / totalFields) * 100);
+
+    return { totals, totalFields, totalFilled, percent };
+  }, [formValues, sections]);
+
   const handleDownloadPdf = async (data: IncidentFormData) => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
     const leftMargin = 14;
     const sectionWidth = pageWidth - leftMargin * 2;
@@ -186,6 +335,158 @@ export default function IncidentForm() {
     const titleX = leftMargin + (logoImage ? logoSize + 6 : 0);
     doc.text('PMGI OFFICIAL INCIDENT REPORT', titleX, 15);
 
+    let cursorY = 30;
+
+    const ensureSpace = (minHeight: number) => {
+      if (cursorY + minHeight > pageHeight - 12) {
+        doc.addPage();
+        cursorY = 20;
+      }
+    };
+
+    const addSectionHeader = (title: string) => {
+      ensureSpace(12);
+      doc.setFillColor(26, 54, 104);
+      doc.rect(leftMargin, cursorY, sectionWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text(title, leftMargin + 4, cursorY + 6);
+      cursorY += 12;
+    };
+
+    const fileToDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error('Failed to read image data'));
+        reader.readAsDataURL(file);
+      });
+
+    const loadImageData = async (source: string | File) => {
+      const dataUrl = typeof source === 'string' ? source : await fileToDataUrl(source);
+      if (!dataUrl) return null;
+      const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+      });
+      return { dataUrl, format, width: img.width, height: img.height };
+    };
+
+    const addSignatureRow = async (leftUrl?: string, rightUrl?: string) => {
+      const leftData = leftUrl ? await loadImageData(leftUrl) : null;
+      const rightData = rightUrl ? await loadImageData(rightUrl) : null;
+      if (!leftData && !rightData) return;
+
+      const gap = 8;
+      const maxWidth = (sectionWidth - gap - 8) / 2;
+      const maxHeight = 55;
+
+      const leftScale = leftData
+        ? Math.min(maxWidth / leftData.width, maxHeight / leftData.height)
+        : 1;
+      const rightScale = rightData
+        ? Math.min(maxWidth / rightData.width, maxHeight / rightData.height)
+        : 1;
+
+      const leftW = leftData ? leftData.width * leftScale : 0;
+      const leftH = leftData ? leftData.height * leftScale : 0;
+      const rightW = rightData ? rightData.width * rightScale : 0;
+      const rightH = rightData ? rightData.height * rightScale : 0;
+      const rowHeight = Math.max(leftH, rightH, 18);
+
+      ensureSpace(18 + rowHeight + 8);
+      doc.setFontSize(10);
+      doc.setTextColor(33, 37, 41);
+      doc.text('Corrective Action Approver', leftMargin + 2, cursorY + 6);
+      doc.text('Safety Officer', leftMargin + maxWidth + gap + 6, cursorY + 6);
+
+      const imgY = cursorY + 10;
+      if (leftData) {
+        const imgX = leftMargin + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, leftW + 2, leftH + 2);
+        doc.addImage(leftData.dataUrl, leftData.format, imgX, imgY, leftW, leftH);
+      }
+      if (rightData) {
+        const imgX = leftMargin + maxWidth + gap + 4;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, rightW + 2, rightH + 2);
+        doc.addImage(rightData.dataUrl, rightData.format, imgX, imgY, rightW, rightH);
+      }
+
+      cursorY = imgY + rowHeight + 8;
+    };
+
+    const addPhotoRow = async (
+      left?: File,
+      middle?: File,
+      right?: File
+    ) => {
+      const leftData = left ? await loadImageData(left) : null;
+      const middleData = middle ? await loadImageData(middle) : null;
+      const rightData = right ? await loadImageData(right) : null;
+      if (!leftData && !middleData && !rightData) return;
+
+      const gap = 6;
+      const maxWidth = (sectionWidth - gap * 2 - 8) / 3;
+      const maxHeight = 40;
+
+      const scale = (data: { width: number; height: number } | null) =>
+        data ? Math.min(maxWidth / data.width, maxHeight / data.height) : 1;
+
+      const leftScale = scale(leftData);
+      const middleScale = scale(middleData);
+      const rightScale = scale(rightData);
+
+      const leftW = leftData ? leftData.width * leftScale : 0;
+      const leftH = leftData ? leftData.height * leftScale : 0;
+      const middleW = middleData ? middleData.width * middleScale : 0;
+      const middleH = middleData ? middleData.height * middleScale : 0;
+      const rightW = rightData ? rightData.width * rightScale : 0;
+      const rightH = rightData ? rightData.height * rightScale : 0;
+      const rowHeight = Math.max(leftH, middleH, rightH, 18);
+
+      ensureSpace(18 + rowHeight + 8);
+      doc.setFontSize(9);
+      doc.setTextColor(33, 37, 41);
+      if (leftData) doc.text('Photo Evidence 1', leftMargin + 2, cursorY + 6);
+      if (middleData) {
+        doc.text('Photo Evidence 2', leftMargin + maxWidth + gap + 4, cursorY + 6);
+      }
+      if (rightData) {
+        doc.text(
+          'Photo Evidence 3',
+          leftMargin + maxWidth * 2 + gap * 2 + 6,
+          cursorY + 6
+        );
+      }
+
+      const imgY = cursorY + 10;
+      if (leftData) {
+        const imgX = leftMargin + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, leftW + 2, leftH + 2);
+        doc.addImage(leftData.dataUrl, leftData.format, imgX, imgY, leftW, leftH);
+      }
+      if (middleData) {
+        const imgX = leftMargin + maxWidth + gap + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, middleW + 2, middleH + 2);
+        doc.addImage(middleData.dataUrl, middleData.format, imgX, imgY, middleW, middleH);
+      }
+      if (rightData) {
+        const imgX = leftMargin + maxWidth * 2 + gap * 2 + 2;
+        doc.setDrawColor(220, 220, 220);
+        doc.rect(imgX - 1, imgY - 1, rightW + 2, rightH + 2);
+        doc.addImage(rightData.dataUrl, rightData.format, imgX, imgY, rightW, rightH);
+      }
+
+      cursorY = imgY + rowHeight + 8;
+    };
+
     autoTable(doc, {
       startY: 30,
       margin: { left: leftMargin, right: leftMargin },
@@ -218,6 +519,19 @@ export default function IncidentForm() {
         1: { cellWidth: sectionWidth - labelWidth },
       },
     });
+
+    cursorY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 30;
+    cursorY += 8;
+
+    if (correctiveSigDataUrl || safetySigDataUrl) {
+      addSectionHeader('SIGNATURES');
+      await addSignatureRow(correctiveSigDataUrl, safetySigDataUrl);
+    }
+
+    if (photo1 || photo2 || photo3) {
+      addSectionHeader('PHOTO EVIDENCE');
+      await addPhotoRow(photo1 ?? undefined, photo2 ?? undefined, photo3 ?? undefined);
+    }
 
     doc.save(`Incident_Report_${data.dateOfIncident}.pdf`);
   };
@@ -257,6 +571,34 @@ export default function IncidentForm() {
     setSavePrompt(null);
   };
 
+  const handleClearDraft = () => {
+    localStorage.removeItem(draftKey);
+    reset({
+      dateOfIncident: getToday(),
+      timeOfIncident: getNowTime(),
+      dateReported: getToday(),
+      dateOfIncidentReported: getToday(),
+      incidentType: 'Other',
+      reporterName: '',
+      locationOfIncident: '',
+      incidentReportedBy: '',
+      phoneNumberOfReporter: '',
+      incidentReportedTo: '',
+      phoneWhereReported: '',
+      descriptionOfIncident: '',
+      peopleInvolved: '',
+      correctiveActionTaken: '',
+      actionToAvoidFuture: '',
+      additionalComments: '',
+      correctiveActionApprovedBy: '',
+      safetyOfficerInCharge: '',
+      correctiveActionImplementedOn: '',
+    });
+  };
+
+  const sectionCount = (key: string) =>
+    completion.totals.find((section) => section.key === key);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {error && (
@@ -264,6 +606,42 @@ export default function IncidentForm() {
           {error}
         </div>
       )}
+
+      {storedDraft && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span className="text-sm">Draft restored from this device.</span>
+          <button
+            type="button"
+            onClick={handleClearDraft}
+            className="text-sm text-blue-900 underline hover:text-blue-700"
+          >
+            Clear draft
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white border border-blue-100 rounded px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-blue-900">Form completion</p>
+          <span className="text-sm text-blue-700">{completion.percent}%</span>
+        </div>
+        <div className="mt-2 h-2 w-full rounded-full bg-blue-100">
+          <div
+            className="h-2 rounded-full bg-blue-700 transition-all"
+            style={{ width: `${completion.percent}%` }}
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-blue-700">
+          {completion.totals.map((section) => (
+            <span
+              key={section.key}
+              className="rounded-full bg-blue-50 px-3 py-1"
+            >
+              {section.label}: {section.filled}/{section.total}
+            </span>
+          ))}
+        </div>
+      </div>
 
       {savePrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -301,7 +679,7 @@ export default function IncidentForm() {
                 onClick={handleSavedAndContinue}
                 className="text-sm text-blue-900 underline hover:text-blue-700"
               >
-                Continue to dashboard
+                Continue to incident reports
               </button>
             </div>
           </div>
@@ -310,7 +688,14 @@ export default function IncidentForm() {
 
       {/* Reporter Information */}
       <div className={sectionClass}>
-        <div className={sectionHeaderClass}>Reporter Information</div>
+        <div className={`${sectionHeaderClass} flex items-center justify-between`}>
+          <span>Reporter Information</span>
+          {sectionCount('reporter') && (
+            <span className="text-xs text-blue-100">
+              {sectionCount('reporter')?.filled}/{sectionCount('reporter')?.total}
+            </span>
+          )}
+        </div>
         <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Reporter Name *</label>
@@ -383,11 +768,24 @@ export default function IncidentForm() {
 
       {/* Incident Details */}
       <div className={sectionClass}>
-        <div className={sectionHeaderClass}>Incident Details</div>
+        <div className={`${sectionHeaderClass} flex items-center justify-between`}>
+          <span>Incident Details</span>
+          {sectionCount('details') && (
+            <span className="text-xs text-blue-100">
+              {sectionCount('details')?.filled}/{sectionCount('details')?.total}
+            </span>
+          )}
+        </div>
         <div className="p-4 sm:p-5 space-y-4">
           <div>
             <label className={labelClass}>What Kind of Incident? *</label>
-            <input {...register('incidentType')} className={inputClass} />
+            <select {...register('incidentType')} className={inputClass}>
+              {incidentTypeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
             {errors.incidentType && <p className={errorClass}>{errors.incidentType.message}</p>}
           </div>
           <div>
@@ -439,7 +837,14 @@ export default function IncidentForm() {
 
       {/* Approvals */}
       <div className={sectionClass}>
-        <div className={sectionHeaderClass}>Approvals & Signatures</div>
+        <div className={`${sectionHeaderClass} flex items-center justify-between`}>
+          <span>Approvals & Signatures</span>
+          {sectionCount('approvals') && (
+            <span className="text-xs text-blue-100">
+              {sectionCount('approvals')?.filled}/{sectionCount('approvals')?.total}
+            </span>
+          )}
+        </div>
         <div className="p-4 sm:p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

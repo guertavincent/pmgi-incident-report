@@ -9,8 +9,14 @@ export interface Incident {
   id?: string;
   incidentId: string;
   createdAt: Timestamp | null;
+  updatedAt?: Timestamp | null;
   submittedBy: string;
   submittedByEmail: string;
+
+  status?: 'Open' | 'In Review' | 'Resolved';
+  assignedToName?: string;
+  assignedToEmail?: string;
+  comments?: IncidentComment[];
 
   reporterName: string;
   dateOfIncident: string;
@@ -39,6 +45,13 @@ export interface Incident {
   sample3Url?: string;
   correctiveSignatureUrl?: string;
   safetySignatureUrl?: string;
+}
+
+export interface IncidentComment {
+  authorUid: string;
+  authorEmail: string;
+  text: string;
+  createdAt: Timestamp | null;
 }
 
 export interface UserProfile {

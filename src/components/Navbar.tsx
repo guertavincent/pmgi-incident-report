@@ -8,8 +8,11 @@ import { useAuthState } from '@/hooks/useAuthState';
 
 export default function Navbar() {
   const router = useRouter();
-  const { user } = useAuthState();
+  const { user, role } = useAuthState();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const dashboardHref = role === 'admin' ? '/admin/dashboard' : '/dashboard';
+  const dashboardLabel = 'Incident Report';
 
   const handleLogout = async () => {
     await logout();
@@ -38,8 +41,8 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-4">
           {user && (
             <>
-              <Link href="/dashboard" className="hover:text-blue-200 text-sm">
-                Dashboard
+              <Link href={dashboardHref} className="hover:text-blue-200 text-sm">
+                {dashboardLabel}
               </Link>
               <Link href="/report" className="hover:text-blue-200 text-sm">
                 New Report
@@ -85,8 +88,8 @@ export default function Navbar() {
           <div className="flex flex-col gap-3 pt-3">
             {user && (
               <>
-                <Link href="/dashboard" className="hover:text-blue-200 text-sm">
-                  Dashboard
+                <Link href={dashboardHref} className="hover:text-blue-200 text-sm">
+                  {dashboardLabel}
                 </Link>
                 <Link href="/report" className="hover:text-blue-200 text-sm">
                   New Report

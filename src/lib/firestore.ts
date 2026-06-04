@@ -10,9 +10,17 @@ import {
   orderBy,
   runTransaction,
   serverTimestamp,
+  arrayUnion,
 } from 'firebase/firestore';
 import { getFirebaseDB } from './firebase';
-import { Incident } from '@/types/incident';
+import { Incident, IncidentComment } from '@/types/incident';
+
+export type IncidentFilters = {
+  dateFrom?: string;
+  dateTo?: string;
+  location?: string;
+  type?: string;
+};
 
 export async function getNextIncidentId(): Promise<string> {
   const db = getFirebaseDB();
@@ -40,6 +48,7 @@ export async function submitIncident(
     ...incidentData,
     incidentId,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return docRef.id;
 }
@@ -62,6 +71,33 @@ export async function updateIncidentFiles(
   await updateDoc(docRef, files);
 }
 
+export async function updateIncident(
+  docId: string,
+  updates: Partial<Incident>
+): Promise<void> {
+  const db = getFirebaseDB();
+  const docRef = doc(db, 'incidents', docId);
+  await updateDoc(docRef, {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function addIncidentComment(
+  docId: string,
+  comment: Omit<IncidentComment, 'createdAt'>
+): Promise<void> {
+  const db = getFirebaseDB();
+  const docRef = doc(db, 'incidents', docId);
+  await updateDoc(docRef, {
+    comments: arrayUnion({
+      ...comment,
+      createdAt: serverTimestamp(),
+    }),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function getIncident(id: string): Promise<Incident | null> {
   const db = getFirebaseDB();
   const docRef = doc(db, 'incidents', id);
@@ -70,20 +106,36 @@ export async function getIncident(id: string): Promise<Incident | null> {
   return { id: snap.id, ...snap.data() } as Incident;
 }
 
-export async function getUserIncidents(uid: string): Promise<Incident[]> {
+export async function getUserIncidents(
+  uid: string,
+  filters: IncidentFilters = {}
+): Promise<Incident[]> {
   const db = getFirebaseDB();
-  const q = query(
-    collection(db, 'incidents'),
-    where('submittedBy', '==', uid),
-    orderBy('createdAt', 'desc')
-  );
+  const clauses = [where('submittedBy', '==', uid)];
+
+  if (filters.type) clauses.push(where('incidentType', '==', filters.type));
+  if (filters.location) clauses.push(where('locationOfIncident', '==', filters.location));
+  if (filters.dateFrom) clauses.push(where('dateOfIncident', '>=', filters.dateFrom));
+  if (filters.dateTo) clauses.push(where('dateOfIncident', '<=', filters.dateTo));
+
+  const orderField = filters.dateFrom || filters.dateTo ? 'dateOfIncident' : 'createdAt';
+  const q = query(collection(db, 'incidents'), ...clauses, orderBy(orderField, 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Incident));
 }
 
-export async function getAllIncidents(): Promise<Incident[]> {
+export async function getAllIncidents(
+  filters: IncidentFilters = {}
+): Promise<Incident[]> {
   const db = getFirebaseDB();
-  const q = query(collection(db, 'incidents'), orderBy('createdAt', 'desc'));
+  const clauses = [] as ReturnType<typeof where>[];
+  if (filters.type) clauses.push(where('incidentType', '==', filters.type));
+  if (filters.location) clauses.push(where('locationOfIncident', '==', filters.location));
+  if (filters.dateFrom) clauses.push(where('dateOfIncident', '>=', filters.dateFrom));
+  if (filters.dateTo) clauses.push(where('dateOfIncident', '<=', filters.dateTo));
+
+  const orderField = filters.dateFrom || filters.dateTo ? 'dateOfIncident' : 'createdAt';
+  const q = query(collection(db, 'incidents'), ...clauses, orderBy(orderField, 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Incident));
 }

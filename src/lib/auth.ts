@@ -2,6 +2,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   updateProfile,
@@ -31,8 +33,25 @@ export async function registerWithEmail(
 
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider();
-  const credential = await signInWithPopup(getFirebaseAuth(), provider);
-  await createUserProfile(credential.user, credential.user.displayName || '');
+  try {
+    const credential = await signInWithPopup(getFirebaseAuth(), provider);
+    await createUserProfile(credential.user, credential.user.displayName || '');
+    return credential;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '';
+    if (message.includes('auth/popup-blocked')) {
+      await signInWithRedirect(getFirebaseAuth(), provider);
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function handleGoogleRedirectResult() {
+  const credential = await getRedirectResult(getFirebaseAuth());
+  if (credential?.user) {
+    await createUserProfile(credential.user, credential.user.displayName || '');
+  }
   return credential;
 }
 

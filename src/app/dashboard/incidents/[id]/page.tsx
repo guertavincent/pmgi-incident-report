@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AuthGuard from '@/components/AuthGuard';
-import { getIncident } from '@/lib/firestore';
+import { addIncidentComment, getIncident, updateIncident } from '@/lib/firestore';
 import { Incident } from '@/types/incident';
+import { useAuthState } from '@/hooks/useAuthState';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -22,10 +23,18 @@ function Field({ label, value }: { label: string; value?: string }) {
 function IncidentDetailContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const { user, role } = useAuthState();
   const [incident, setIncident] = useState<Incident | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState<'Open' | 'In Review' | 'Resolved'>('Open');
+  const [assignedToName, setAssignedToName] = useState('');
+  const [assignedToEmail, setAssignedToEmail] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const downloadOnce = useRef(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,6 +44,9 @@ function IncidentDetailContent() {
           setError('Incident not found');
         } else {
           setIncident(data);
+          setStatus((data.status ?? 'Open') as 'Open' | 'In Review' | 'Resolved');
+          setAssignedToName(data.assignedToName ?? '');
+          setAssignedToEmail(data.assignedToEmail ?? '');
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load incident');
@@ -44,46 +56,6 @@ function IncidentDetailContent() {
     };
     fetchData();
   }, [id]);
-
-  const formatDate = (ts: unknown) => {
-    if (!ts) return '-';
-    try {
-      const date =
-        ts && typeof ts === 'object' && 'toDate' in ts
-          ? (ts as { toDate: () => Date }).toDate()
-          : new Date(ts as string);
-      return format(date, 'MMM dd, yyyy hh:mm a');
-    } catch {
-      return '-';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error || !incident) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
-          {error || 'Incident not found'}
-        </div>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mt-4 text-blue-600 hover:underline text-sm"
-        >
-          ← Back to Dashboard
-        </button>
-      </div>
-    );
-  }
-
-  const sectionClass = 'bg-white rounded-lg border border-gray-200 overflow-hidden mb-4';
-  const headerClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
 
   const handleDownloadPdf = async (data: Incident) => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -356,11 +328,106 @@ function IncidentDetailContent() {
     doc.save(`${safeId}.pdf`);
   };
 
+  useEffect(() => {
+    const shouldDownload = searchParams.get('download') === '1';
+    if (!shouldDownload || !incident || downloadOnce.current) return;
+    downloadOnce.current = true;
+    void handleDownloadPdf(incident);
+  }, [incident, searchParams]);
+
+  const formatDate = (ts: unknown) => {
+    if (!ts) return '-';
+    try {
+      const date =
+        ts && typeof ts === 'object' && 'toDate' in ts
+          ? (ts as { toDate: () => Date }).toDate()
+          : new Date(ts as string);
+      return format(date, 'MMM dd, yyyy hh:mm a');
+    } catch {
+      return '-';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error || !incident) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded">
+          {error || 'Incident not found'}
+        </div>
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="mt-4 text-blue-600 hover:underline text-sm"
+        >
+          ← Back to Incident Reports
+        </button>
+      </div>
+    );
+  }
+
+  const sectionClass = 'bg-white rounded-lg border border-gray-200 overflow-hidden mb-4';
+  const headerClass = 'bg-blue-900 text-white text-sm font-bold px-4 py-2';
+
+  const handleSaveWorkflow = async () => {
+    if (!incident || role !== 'admin') return;
+    setSaving(true);
+    try {
+      await updateIncident(incident.id as string, {
+        status,
+        assignedToName: assignedToName.trim(),
+        assignedToEmail: assignedToEmail.trim(),
+      });
+      setIncident({
+        ...incident,
+        status,
+        assignedToName: assignedToName.trim(),
+        assignedToEmail: assignedToEmail.trim(),
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update incident');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!incident || role !== 'admin' || !user) return;
+    const trimmed = commentText.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    try {
+      await addIncidentComment(incident.id as string, {
+        authorUid: user.uid,
+        authorEmail: user.email || 'admin',
+        text: trimmed,
+      });
+      setIncident({
+        ...incident,
+        comments: [
+          ...(incident.comments ?? []),
+          { authorUid: user.uid, authorEmail: user.email || 'admin', text: trimmed, createdAt: null },
+        ],
+      });
+      setCommentText('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add comment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/dashboard" className="text-blue-600 hover:underline text-sm">
-          ← Back to Dashboard
+          ← Back to Incident Reports
         </Link>
       </div>
 
@@ -369,7 +436,19 @@ function IncidentDetailContent() {
           <h1 className="text-xl sm:text-2xl font-bold text-blue-900">
             {incident.incidentId}
           </h1>
-          <p className="text-sm text-gray-500">Submitted: {formatDate(incident.createdAt)}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
+              {incident.status ?? 'Open'}
+            </span>
+            <span className="text-sm text-gray-500">
+              Submitted: {formatDate(incident.createdAt)}
+            </span>
+            {(incident.assignedToName || incident.assignedToEmail) && (
+              <span className="text-sm text-gray-500">
+                Assigned: {incident.assignedToName || incident.assignedToEmail}
+              </span>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -379,6 +458,52 @@ function IncidentDetailContent() {
           Download PDF
         </button>
       </div>
+
+      {role === 'admin' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Admin workflow</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'Open' | 'In Review' | 'Resolved')}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                <option value="Open">Open</option>
+                <option value="In Review">In Review</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Assigned To (Name)</label>
+              <input
+                value={assignedToName}
+                onChange={(e) => setAssignedToName(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Assigned To (Email)</label>
+              <input
+                value={assignedToEmail}
+                onChange={(e) => setAssignedToEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveWorkflow}
+              disabled={saving}
+              className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-800 disabled:opacity-60"
+            >
+              Save changes
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={sectionClass}>
         <div className={headerClass}>Reporter Information</div>
@@ -421,6 +546,57 @@ function IncidentDetailContent() {
             value={incident.correctiveActionImplementedOn}
           />
         </dl>
+      </div>
+
+      <div className={sectionClass}>
+        <div className={headerClass}>Comments</div>
+        <div className="p-4 space-y-3">
+          {(incident.comments ?? []).length === 0 ? (
+            <p className="text-sm text-gray-500">No comments yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {(incident.comments ?? []).map((comment, idx) => (
+                <div key={`${comment.authorUid}-${idx}`} className="rounded border border-gray-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-gray-600">
+                      {comment.authorEmail}
+                    </p>
+                    <span className="text-xs text-gray-400">
+                      {formatDate(comment.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">
+                    {comment.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {role === 'admin' && (
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Add comment
+              </label>
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAddComment}
+                  disabled={saving}
+                  className="bg-blue-900 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-800 disabled:opacity-60"
+                >
+                  Add comment
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {(incident.correctiveSignatureUrl || incident.safetySignatureUrl) && (

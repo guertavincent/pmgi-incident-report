@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loginWithEmail, loginWithGoogle, logout, getUserRole } from '@/lib/auth';
+import {
+  loginWithEmail,
+  loginWithGoogle,
+  logout,
+  getUserRole,
+  handleGoogleRedirectResult,
+} from '@/lib/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
 
 export default function AdminLoginPage() {
@@ -13,7 +19,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const finalizeLogin = async () => {
+  const finalizeLogin = useCallback(async () => {
     const user = getFirebaseAuth().currentUser;
     if (!user) {
       throw new Error('No authenticated user found.');
@@ -24,7 +30,33 @@ export default function AdminLoginPage() {
       throw new Error('Admin access only.');
     }
     router.push('/admin/dashboard');
-  };
+  }, [router]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const resolveRedirect = async () => {
+      try {
+        const credential = await handleGoogleRedirectResult();
+        if (credential?.user && isActive) {
+          await finalizeLogin();
+        }
+      } catch (err: unknown) {
+        if (isActive) {
+          setError(err instanceof Error ? err.message : 'Google login failed');
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void resolveRedirect();
+    }, 0);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timer);
+    };
+  }, [finalizeLogin]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,8 +76,10 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
     try {
-      await loginWithGoogle();
-      await finalizeLogin();
+      const credential = await loginWithGoogle();
+      if (credential?.user) {
+        await finalizeLogin();
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Google login failed');
     } finally {
@@ -109,7 +143,6 @@ export default function AdminLoginPage() {
 
         <button
           onClick={handleGoogleLogin}
-          disabled={loading}
           className="w-full border border-gray-300 text-gray-700 py-2 rounded font-medium hover:bg-gray-50 flex items-center justify-center gap-2 disabled:opacity-60"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
